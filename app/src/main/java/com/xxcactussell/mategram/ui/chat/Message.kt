@@ -44,6 +44,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
 import androidx.compose.material3.carousel.rememberCarouselState
@@ -99,16 +100,19 @@ import com.xxcactussell.mategram.kotlinx.telegram.coroutines.getUser
 import com.xxcactussell.mategram.ui.StickerPlayer
 import kotlinx.coroutines.launch
 import org.drinkless.tdlib.TdApi
+import org.drinkless.tdlib.TdApi.FormattedText
 import org.drinkless.tdlib.TdApi.MessageAnimatedEmoji
 import org.drinkless.tdlib.TdApi.MessageAnimation
 import org.drinkless.tdlib.TdApi.MessageDice
 import org.drinkless.tdlib.TdApi.MessageDocument
 import org.drinkless.tdlib.TdApi.MessagePhoto
+import org.drinkless.tdlib.TdApi.MessagePoll
 import org.drinkless.tdlib.TdApi.MessageReplyToMessage
 import org.drinkless.tdlib.TdApi.MessageSticker
 import org.drinkless.tdlib.TdApi.MessageText
 import org.drinkless.tdlib.TdApi.MessageVideo
 import org.drinkless.tdlib.TdApi.MessageVoiceNote
+import org.drinkless.tdlib.TdApi.PollTypeRegular
 import org.drinkless.tdlib.TdApi.Video
 import java.io.File
 import kotlin.math.roundToInt
@@ -130,6 +134,7 @@ fun MessageItem(
     chatId: Long,
     onTogglePlay: (Long, MessageVoiceNote, Long) -> Unit,
     item: TdApi.Message,
+    snackBarHostState: SnackbarHostState
 ) {
     val scope = rememberCoroutineScope()
     val customEmojiMap by viewModel.customEmojiMapFlow.collectAsState() // customEmojiId -> path
@@ -141,6 +146,15 @@ fun MessageItem(
         is MessagePhoto -> (item.content as MessagePhoto).caption
         is MessageAnimation -> (item.content as MessageAnimation).caption
         is MessageDocument -> (item.content as MessageDocument).caption
+        is MessagePoll -> {
+            var emojis = (item.content as MessagePoll).poll.question.entities
+            (item.content as MessagePoll).poll.options.forEach { option ->
+                emojis += option.text.entities
+            }
+            FormattedText(
+                "", emojis
+            )
+        }
         else -> TdApi.FormattedText("", emptyArray())
     }
 
@@ -197,6 +211,10 @@ fun MessageItem(
     }
 
     when (val content = item.content) {
+        is MessagePoll -> {
+            val poll = content.poll
+            PollMessage(poll = poll, inlineContent = inlineContent, item = item, viewModel = viewModel, snackBarHostState = snackBarHostState)
+        }
         is MessageText -> {
             Text(
                 modifier = Modifier.padding(16.dp, 8.dp),

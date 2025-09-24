@@ -1,8 +1,6 @@
 package com.xxcactussell.mategram
 
 import android.Manifest
-import android.annotation.SuppressLint
-import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
@@ -11,9 +9,7 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
-import android.view.View
 import android.view.Window
-import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -22,9 +18,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -34,18 +30,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.firebase.FirebaseApp
-import com.xxcactussell.mategram.kotlinx.telegram.core.TelegramRepository.api
 import com.xxcactussell.mategram.domain.entity.AuthState
 import com.xxcactussell.mategram.kotlinx.telegram.core.TelegramRepository
+import com.xxcactussell.mategram.kotlinx.telegram.core.TelegramRepository.api
 import com.xxcactussell.mategram.kotlinx.telegram.coroutines.getAuthorizationState
-import com.xxcactussell.mategram.ui.chat.ChatListView
 import com.xxcactussell.mategram.notifications.FcmManager
+import com.xxcactussell.mategram.ui.chat.ChatListView
 import com.xxcactussell.mategram.ui.loginView.Login2FAView
 import com.xxcactussell.mategram.ui.loginView.LoginCodeView
 import com.xxcactussell.mategram.ui.loginView.LoginPhoneView
@@ -86,7 +81,7 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(Unit) {
                     try {
-                        when (val state = api.getAuthorizationState()) {
+                        when (api.getAuthorizationState()) {
                             is TdApi.AuthorizationStateReady -> {
                                 viewModel.setAuthState(AuthState.Ready)
                                 initialChatId?.let { chatId ->
@@ -225,14 +220,10 @@ private fun AuthStateContent(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun LoadingIndicator() {
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        CircularProgressIndicator(
-            modifier = Modifier
-                .align(Alignment.Center),
-            color = MaterialTheme.colorScheme.primary,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-        )
+        androidx.compose.material3.LoadingIndicator(modifier = Modifier.align(Alignment.Center))
     }
 }

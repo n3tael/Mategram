@@ -20,7 +20,7 @@ android {
         minSdk = 33
         targetSdk = 35
         versionCode = 1
-        versionName = "0.0.11 beta"
+        versionName = "0.0.12 beta"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -33,6 +33,8 @@ android {
 
     buildTypes {
         release {
+            isMinifyEnabled = true // Включает минификацию
+            isShrinkResources = true // Удаляет неиспользуемые ресурсы
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -96,4 +98,5 @@ dependencies {
     implementation(libs.lottie.compose)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.datastore.preferences.core)
+    implementation(libs.androidx.material.icons.extended)
 }

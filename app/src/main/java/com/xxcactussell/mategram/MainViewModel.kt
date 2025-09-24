@@ -30,6 +30,7 @@ import com.xxcactussell.mategram.kotlinx.telegram.coroutines.getUser
 import com.xxcactussell.mategram.kotlinx.telegram.coroutines.openChat
 import com.xxcactussell.mategram.kotlinx.telegram.coroutines.sendMessage
 import com.xxcactussell.mategram.kotlinx.telegram.coroutines.setOption
+import com.xxcactussell.mategram.kotlinx.telegram.coroutines.setPollAnswer
 import com.xxcactussell.mategram.kotlinx.telegram.coroutines.setTdlibParameters
 import com.xxcactussell.mategram.kotlinx.telegram.coroutines.viewMessages
 import com.xxcactussell.mategram.kotlinx.telegram.flows.authorizationStateFlow
@@ -44,7 +45,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -59,11 +59,32 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.drinkless.tdlib.TdApi
+import org.drinkless.tdlib.TdApi.AuthorizationStateReady
+import org.drinkless.tdlib.TdApi.AuthorizationStateWaitCode
+import org.drinkless.tdlib.TdApi.AuthorizationStateWaitPassword
+import org.drinkless.tdlib.TdApi.AuthorizationStateWaitPhoneNumber
+import org.drinkless.tdlib.TdApi.AuthorizationStateWaitTdlibParameters
 import org.drinkless.tdlib.TdApi.Chat
+import org.drinkless.tdlib.TdApi.UpdateChatPosition
+import org.drinkless.tdlib.TdApi.UpdateChatDraftMessage
+import org.drinkless.tdlib.TdApi.UpdateChatAddedToList
+import org.drinkless.tdlib.TdApi.UpdateChatLastMessage
+import org.drinkless.tdlib.TdApi.UpdateChatFolders
+import org.drinkless.tdlib.TdApi.ChatListMain
 import org.drinkless.tdlib.TdApi.File
-import org.drinkless.tdlib.TdApi.MessageSenderUser
-import org.drinkless.tdlib.TdApi.StickerFullType
-import org.drinkless.tdlib.TdApi.StickerFullTypeCustomEmoji
+import org.drinkless.tdlib.TdApi.LoadChats
+import org.drinkless.tdlib.TdApi.Ok
+import org.drinkless.tdlib.TdApi.Error
+import org.drinkless.tdlib.TdApi.ChatFolder
+import org.drinkless.tdlib.TdApi.FormattedText
+import org.drinkless.tdlib.TdApi.InputFileLocal
+import org.drinkless.tdlib.TdApi.InputMessageReplyTo
+import org.drinkless.tdlib.TdApi.InputMessageVoiceNote
+import org.drinkless.tdlib.TdApi.Message
+import org.drinkless.tdlib.TdApi.MessageSendOptions
+import org.drinkless.tdlib.TdApi.OptionValueInteger
+import org.drinkless.tdlib.TdApi.SetTdlibParameters
+import org.drinkless.tdlib.TdApi.TextEntity
 import org.drinkless.tdlib.TdApi.User
 import java.io.ByteArrayOutputStream
 import java.io.FileInputStream
@@ -102,26 +123,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             api.authorizationStateFlow()
                 .onEach { state ->
                     when (state) {
-                        is TdApi.AuthorizationStateWaitTdlibParameters -> {
+                        is AuthorizationStateWaitTdlibParameters -> {
                             Log.d("MainViewModel", "Setting TDLib parameters...")
                             try {
-                                api.setTdlibParameters(
-                                    TelegramCredentials.USE_TEST_DC,
-                                    TelegramCredentials.databaseDirectory,
-                                    TelegramCredentials.filesDirectory,
-                                    TelegramCredentials.encryptionKey,
-                                    TelegramCredentials.USE_FILE_DATABASE,
-                                    TelegramCredentials.USE_CHAT_INFO_DATABASE,
-                                    TelegramCredentials.USE_MESSAGE_DATABASE,
-                                    TelegramCredentials.USE_SECRET_CHATS,
-                                    TelegramCredentials.API_ID,
-                                    TelegramCredentials.API_HASH,
-                                    TelegramCredentials.systemLanguageCode,
-                                    TelegramCredentials.deviceModel,
-                                    TelegramCredentials.systemVersion,
-                                    TelegramCredentials.APPLICATION_VERSION
-                                )
-                                Log.d("MainViewModel", "TDLib parameters set successfully")
+                                api.client?.send(
+                                    SetTdlibParameters(
+                                        TelegramCredentials.USE_TEST_DC,
+                                        TelegramCredentials.databaseDirectory,
+                                        TelegramCredentials.filesDirectory,
+                                        TelegramCredentials.encryptionKey,
+                                        TelegramCredentials.USE_FILE_DATABASE,
+                                        TelegramCredentials.USE_CHAT_INFO_DATABASE,
+                                        TelegramCredentials.USE_MESSAGE_DATABASE,
+                                        TelegramCredentials.USE_SECRET_CHATS,
+                                        TelegramCredentials.API_ID,
+                                        TelegramCredentials.API_HASH,
+                                        TelegramCredentials.systemLanguageCode,
+                                        TelegramCredentials.deviceModel,
+                                        TelegramCredentials.systemVersion,
+                                        TelegramCredentials.APPLICATION_VERSION
+                                    )
+                                ) { result ->
+                                    if (result is Ok) {
+                                        Log.d("MainViewModel", "TDLib parameters set successfully")
+                                    } else {
+                                        Log.e("MainViewModel", "TDLib parameters not set successfully")
+                                    }
+                                }
                             } catch (e: Exception) {
                                 Log.e("MainViewModel", "Error setting TDLib parameters", e)
                             }
@@ -133,27 +161,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 .map { state ->
                     when (state) {
-                        is TdApi.AuthorizationStateWaitTdlibParameters -> {
+                        is AuthorizationStateWaitTdlibParameters -> {
                             Log.d("MainViewModel", "Mapped: Waiting for TDLib parameters")
                             AuthState.WaitTdlibParameters
                         }
 
-                        is TdApi.AuthorizationStateWaitPhoneNumber -> {
+                        is AuthorizationStateWaitPhoneNumber -> {
                             Log.d("MainViewModel", "Mapped: Waiting for phone")
                             AuthState.WaitPhone
                         }
 
-                        is TdApi.AuthorizationStateWaitCode -> {
+                        is AuthorizationStateWaitCode -> {
                             Log.d("MainViewModel", "Mapped: Waiting for code")
                             AuthState.WaitCode
                         }
 
-                        is TdApi.AuthorizationStateWaitPassword -> {
+                        is AuthorizationStateWaitPassword -> {
                             Log.d("MainViewModel", "Mapped: Waiting for password")
                             AuthState.WaitPassword
                         }
 
-                        is TdApi.AuthorizationStateReady -> {
+                        is AuthorizationStateReady -> {
                             Log.d("MainViewModel", "Mapped: Ready")
                             AuthState.Ready
                         }
@@ -190,32 +218,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Отправка кода подтверждения
-    fun sendCode(code: String) {
-        viewModelScope.launch {
-            println("MainViewModel: отправляем код подтверждения: $code")
-            repository.sendCode(code)
-        }
-    }
-
-    // Отправка пароля
-    fun sendPassword(password: String) {
-        viewModelScope.launch {
-            println("MainViewModel: отправляем пароль: $password")
-            repository.sendPassword(password)
-        }
-    }
-
-    // Выход из аккаунта
-    fun logOut() {
-        viewModelScope.launch {
-            println("MainViewModel: выходим из аккаунта...")
-            repository.logOut()
-        }
-    }
-
-    private var _me = MutableStateFlow<TdApi.User?>(null)
-    val me: StateFlow<TdApi.User?> = _me
+    private var _me = MutableStateFlow<User?>(null)
+    val me: StateFlow<User?> = _me
 
     init {
         observeAuthorizationState()
@@ -244,13 +248,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Установка максимального количества групп уведомлений
             api.setOption(
                 name = "notification_group_count_max",
-                value = TdApi.OptionValueInteger(10)
+                value = OptionValueInteger(10)
             )
 
             // Установка максимального размера группы уведомлений
             api.setOption(
                 name = "notification_group_size_max",
-                value = TdApi.OptionValueInteger(20)
+                value = OptionValueInteger(20)
             )
         }
     }
@@ -265,10 +269,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 // Запускаем загрузку чатов
-                api.client?.send(TdApi.LoadChats(TdApi.ChatListMain(), limit)) { response ->
+                api.client?.send(LoadChats(ChatListMain(), limit)) { response ->
                     when (response) {
-                        is TdApi.Ok -> Log.d("ChatUpdater", "Chats were loaded successfully")
-                        is TdApi.Error -> Log.e("ChatUpdater", "Failed to load chats: $response")
+                        is Ok -> Log.d("ChatUpdater", "Chats were loaded successfully")
+                        is Error -> Log.e("ChatUpdater", "Failed to load chats: $response")
                     }
                 }
             } catch (e: Exception) {
@@ -328,25 +332,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun handleChatPosition(update: TdApi.UpdateChatPosition) {
+    private suspend fun handleChatPosition(update: UpdateChatPosition) {
         val chatId = update.chatId
         Log.d("ChatUpdater", "$chatId")
         handleChatUpdate(api.getChat(chatId))
     }
 
-    private suspend fun handleChatDraft(update: TdApi.UpdateChatDraftMessage) {
+    private suspend fun handleChatDraft(update: UpdateChatDraftMessage) {
         val chatId = update.chatId
         Log.d("ChatUpdater", "$chatId")
         handleChatUpdate(api.getChat(chatId))
     }
 
-    private suspend fun handleChatAddedToList(update: TdApi.UpdateChatAddedToList) {
+    private suspend fun handleChatAddedToList(update: UpdateChatAddedToList) {
         val chatId = update.chatId
         Log.d("ChatUpdater", "$chatId")
         handleChatUpdate(api.getChat(chatId))
     }
 
-    private suspend fun handleChatLastMessage(update: TdApi.UpdateChatLastMessage) {
+    private suspend fun handleChatLastMessage(update: UpdateChatLastMessage) {
         val chatId = update.chatId
         Log.d("ChatUpdater", "$chatId")
         handleChatUpdate(api.getChat(chatId))
@@ -385,12 +389,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
 
-    private var _chatFolders = MutableStateFlow<List<TdApi.ChatFolder>>(emptyList())
-    var chatFolders: StateFlow<List<TdApi.ChatFolder>> = _chatFolders
+    private var _chatFolders = MutableStateFlow<List<ChatFolder>>(emptyList())
+    var chatFolders: StateFlow<List<ChatFolder>> = _chatFolders
 
-    private fun handleChatFoldersUpdate(update: TdApi.UpdateChatFolders) {
+    private fun handleChatFoldersUpdate(update: UpdateChatFolders) {
         chatUpdatesScope.launch {
-            val newList: MutableList<TdApi.ChatFolder> = mutableListOf()
+            val newList: MutableList<ChatFolder> = mutableListOf()
             update.chatFolders.forEach { chatFolderInfo ->
                 val chatFolder = api.getChatFolder(chatFolderInfo.id)
                 newList += chatFolder
@@ -422,7 +426,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    val mapOfMessages = ConcurrentHashMap<Long, MutableStateFlow<MutableList<TdApi.Message>>>()
+    val mapOfMessages = ConcurrentHashMap<Long, MutableStateFlow<MutableList<Message>>>()
 
     fun getMessagesForChat(chatId: Long, fromMessage: Long = 0) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -449,20 +453,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun sendVoiceNote(
         chatId: Long,
         filePath: String,
-        replyToMessageId: TdApi.InputMessageReplyTo?
+        replyToMessageId: InputMessageReplyTo?
     ) {
         viewModelScope.launch {
             try {
-                val inputFile = TdApi.InputFileLocal(filePath)
+                val inputFile = InputFileLocal(filePath)
 
                 val duration = getAudioDuration(filePath)
 
                 val waveform = generateWaveform(filePath)
 
-                val caption = TdApi.FormattedText("", emptyArray<TdApi.TextEntity>())
+                val caption = FormattedText("", emptyArray<TextEntity>())
 
                 // Create the voice note message with null self-destruct type
-                val voiceNote = TdApi.InputMessageVoiceNote().apply {
+                val voiceNote = InputMessageVoiceNote().apply {
                     this.voiceNote = inputFile
                     this.duration = duration
                     this.waveform = waveform
@@ -475,7 +479,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     chatId = chatId,
                     messageThreadId = 0,
                     replyTo = replyToMessageId,
-                    options = TdApi.MessageSendOptions(),
+                    options = MessageSendOptions(),
                     replyMarkup = null,
                     inputMessageContent = voiceNote
                 )
@@ -1345,6 +1349,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             _customEmojiMapFlow.value = currentMap
         }
+    }
+
+    suspend fun choseAnswer(answer: IntArray, chatId: Long, messageId: Long) {
+        api.setPollAnswer(chatId, messageId, answer)
     }
 }
 

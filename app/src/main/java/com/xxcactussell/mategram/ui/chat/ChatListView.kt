@@ -2,9 +2,7 @@ package com.xxcactussell.mategram.ui.chat
 
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import android.view.Window
-import android.widget.Space
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
@@ -51,13 +49,16 @@ import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -123,8 +124,6 @@ import com.xxcactussell.mategram.kotlinx.telegram.core.isUserContact
 import com.xxcactussell.mategram.kotlinx.telegram.coroutines.closeChat
 import com.xxcactussell.mategram.kotlinx.telegram.coroutines.createPrivateChat
 import com.xxcactussell.mategram.kotlinx.telegram.coroutines.getBasicGroup
-import com.xxcactussell.mategram.kotlinx.telegram.coroutines.getChat
-import com.xxcactussell.mategram.kotlinx.telegram.coroutines.getChatFolder
 import com.xxcactussell.mategram.kotlinx.telegram.coroutines.getSupergroup
 import com.xxcactussell.mategram.kotlinx.telegram.coroutines.getUser
 import com.xxcactussell.mategram.kotlinx.telegram.coroutines.openChat
@@ -132,34 +131,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.drinkless.tdlib.TdApi
-import org.drinkless.tdlib.TdApi.ChatActionChoosingContact
-import org.drinkless.tdlib.TdApi.ChatActionChoosingLocation
-import org.drinkless.tdlib.TdApi.ChatActionChoosingSticker
-import org.drinkless.tdlib.TdApi.ChatActionRecordingVideo
-import org.drinkless.tdlib.TdApi.ChatActionRecordingVideoNote
-import org.drinkless.tdlib.TdApi.ChatActionRecordingVoiceNote
-import org.drinkless.tdlib.TdApi.ChatActionStartPlayingGame
-import org.drinkless.tdlib.TdApi.ChatActionTyping
-import org.drinkless.tdlib.TdApi.ChatActionUploadingDocument
-import org.drinkless.tdlib.TdApi.ChatActionUploadingPhoto
-import org.drinkless.tdlib.TdApi.ChatActionUploadingVideo
-import org.drinkless.tdlib.TdApi.ChatActionUploadingVideoNote
-import org.drinkless.tdlib.TdApi.ChatActionUploadingVoiceNote
-import org.drinkless.tdlib.TdApi.ChatActionWatchingAnimations
 import org.drinkless.tdlib.TdApi.ChatTypeBasicGroup
 import org.drinkless.tdlib.TdApi.ChatTypePrivate
 import org.drinkless.tdlib.TdApi.ChatTypeSupergroup
 import org.drinkless.tdlib.TdApi.MessageVoiceNote
-import org.drinkless.tdlib.TdApi.UserStatusLastMonth
-import org.drinkless.tdlib.TdApi.UserStatusLastWeek
-import org.drinkless.tdlib.TdApi.UserStatusOffline
 import org.drinkless.tdlib.TdApi.UserStatusOnline
 import org.drinkless.tdlib.TdApi.UserTypeBot
 import org.drinkless.tdlib.TdApi.UserTypeDeleted
 
 @OptIn(
     ExperimentalMaterial3AdaptiveApi::class,
-    ExperimentalMaterial3Api::class
+    ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class
 )
 @Composable
 fun ChatListView(
@@ -267,7 +249,7 @@ fun ChatListView(
             ) {
                 Scaffold(
                     topBar = {
-                        LargeTopAppBar(
+                        LargeFlexibleTopAppBar(
                             title = { Text("Чаты") },
                             scrollBehavior = scrollBehavior,
                             actions = {
@@ -286,7 +268,7 @@ fun ChatListView(
                                 } else {
                                     // Если аватарка еще не загружена, показываем индикатор загрузки.
                                     Box(modifier = Modifier.size(36.dp)) {
-                                        CircularProgressIndicator(color = Color.Gray)
+                                        CircularWavyProgressIndicator()
                                     }
                                 }
                                 Spacer(modifier = Modifier.width(16.dp))

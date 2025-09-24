@@ -75,7 +75,6 @@ class TelegramFlow constructor(
     }
 
     fun registerDeviceTokenByClient(token: String) {
-
         client?.send(TdApi.SetOption(
             "notification_group_size_max",
             TdApi.OptionValueInteger(5)
@@ -86,7 +85,6 @@ class TelegramFlow constructor(
             }
         }
 
-        // Максимальное количество групп уведомлений
         client?.send(TdApi.SetOption(
             "notification_group_count_max",
             TdApi.OptionValueInteger(5)

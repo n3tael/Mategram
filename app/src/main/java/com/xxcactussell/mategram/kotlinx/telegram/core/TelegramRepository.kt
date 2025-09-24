@@ -21,6 +21,7 @@ import com.xxcactussell.mategram.kotlinx.telegram.flows.chatReadInboxFlow
 import com.xxcactussell.mategram.kotlinx.telegram.flows.fileFlow
 import com.xxcactussell.mategram.kotlinx.telegram.flows.newChatFlow
 import com.xxcactussell.mategram.kotlinx.telegram.flows.newMessageFlow
+import com.xxcactussell.mategram.kotlinx.telegram.flows.pollFlow
 import com.xxcactussell.mategram.kotlinx.telegram.flows.userStatusFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
