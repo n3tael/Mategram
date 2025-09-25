@@ -1,3 +1,5 @@
+<img width="1280" height="640" alt="Frame 25" src="https://github.com/user-attachments/assets/dbe126d2-96b6-4284-81a9-93e9f5e5d7f1" />
+
 ## Mategram
 
 A modern Telegram client built with Jetpack Compose, Kotlin, and Material 3 Design, offering a sleek and intuitive user experience. Designed for speed, efficiency, and seamless interaction, it leverages the power of Kotlin to deliver a smooth and responsive interface. Whether messaging, sharing media, or managing chats, this client is crafted to enhance your communication experience with the latest Android technologies.
