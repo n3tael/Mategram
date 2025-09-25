@@ -1,4 +1,4 @@
-<img width="1280" height="640" alt="Frame 25" src="https://github.com/user-attachments/assets/dbe126d2-96b6-4284-81a9-93e9f5e5d7f1" />
+<img width="1280" height="640" alt="Cover" src="https://github.com/user-attachments/assets/1796a4a7-0ddc-4dd1-8410-e0743ee6f663" />
 
 ## Mategram
 
