@@ -1,0 +1,9 @@
+[submodule "mobile/src/main/cpp/rlottie"]
+	path = mobile/src/main/cpp/rlottie
+	url = https://github.com/xxcactussell/mategram-rlottie.git
+[submodule "rlottie/src/main/cpp/rlottie"]
+	path = rlottie/src/main/cpp/rlottie
+	url = https://github.com/xxcactussell/mategram-rlottie.git
+[submodule "mategram/rlottie/src/main/cpp/rlottie"]
+	path = mategram/rlottie/src/main/cpp/rlottie
+	url = https://github.com/xxcactussell/mategram-rlottie.git
