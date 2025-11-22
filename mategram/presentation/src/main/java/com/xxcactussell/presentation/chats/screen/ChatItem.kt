@@ -40,10 +40,16 @@ fun ChatItem(
         else -> Color.Transparent
     }
 
+    val containerShape = when {
+        uiState.isSelected -> RoundedCornerShape(48.dp)
+        uiState.isUnread -> RoundedCornerShape(48.dp)
+        else -> RoundedCornerShape(24.dp)
+    }
+
     ListItem(
         modifier = Modifier
             .padding(horizontal = 8.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(24.dp))
+            .clip(containerShape)
             .clickable { onChatClicked(uiState.chat.id) },
         headlineContent = {
             Text(

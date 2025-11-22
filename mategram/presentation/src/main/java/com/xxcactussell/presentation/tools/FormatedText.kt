@@ -13,6 +13,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -42,6 +43,8 @@ import com.xxcactussell.domain.messages.model.StickerFormat
 import com.xxcactussell.domain.messages.model.TextEntity
 import com.xxcactussell.domain.messages.model.TextEntityType
 import com.xxcactussell.presentation.LocalRootViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 sealed interface InlineContentState {
     data class CustomEmoji(
@@ -215,16 +218,21 @@ fun FormattedTextView(
     val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
     val primaryColor = MaterialTheme.colorScheme.primary
 
-    val uiState = remember(text, files, stickers, revealedSpoilers) {
-        mapToUiState(
-            text = text,
-            files = files,
-            stickers = stickers,
-            revealedSpoilers = revealedSpoilers,
-            baseStyle = style,
-            surfaceVariantColor = surfaceVariantColor,
-            primaryColor = primaryColor
-        )
+    val uiState by produceState(
+        initialValue = FormattedTextUiState(AnnotatedString(""), emptyMap(), emptyList()),
+        text, files, stickers, revealedSpoilers
+    ) {
+        value = withContext(Dispatchers.Default) {
+            mapToUiState(
+                text = text,
+                files = files,
+                stickers = stickers,
+                revealedSpoilers = revealedSpoilers,
+                baseStyle = style,
+                surfaceVariantColor = surfaceVariantColor,
+                primaryColor = primaryColor
+            )
+        }
     }
 
     val spoilerEntities = remember(text) {
@@ -288,14 +296,21 @@ fun FormattedTextView(
             overflow = overflow,
             softWrap = softWrap,
         )
-        if (revealedSpoilers.size < spoilerEntities.size) {
-            val spoilerPaths = remember(textLayoutResult, revealedSpoilers) {
-                spoilerEntities
+        if (revealedSpoilers.size < uiState.spoilerEntities.size) {
+            val spoilerPaths = remember(textLayoutResult, revealedSpoilers, uiState.spoilerEntities) {
+                val currentTextLength = textLayoutResult?.layoutInput?.text?.length ?: 0
+                uiState.spoilerEntities
                     .filter { it.offset !in revealedSpoilers }
                     .mapNotNull { entity ->
-                        textLayoutResult?.getPathForRange(entity.offset, entity.offset + entity.length)
+                        val endOffset = entity.offset + entity.length
+                        if (textLayoutResult != null && endOffset <= currentTextLength) {
+                            textLayoutResult!!.getPathForRange(entity.offset, endOffset)
+                        } else {
+                            null
+                        }
                     }
             }
+
             SpoilerEffect(
                 modifier = Modifier.matchParentSize(),
                 textLayoutResult = textLayoutResult,

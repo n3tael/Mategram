@@ -1,6 +1,7 @@
 package com.xxcactussell.presentation.messages.screen
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -25,7 +26,7 @@ import com.xxcactussell.presentation.tools.ColumnWidthOf
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MessageAlbum(messages: List<MessageUiItem.MessageItem>) {
+fun MessageAlbum(messages: List<MessageUiItem.MessageItem>, onMediaClicked: (Long) -> Unit) {
     val caption = messages.firstNotNullOfOrNull {
         when (val content = it.message.content) {
             is MessageContent.MessagePhoto -> if (content.caption.text.isNotEmpty()) content.caption else null
@@ -86,10 +87,13 @@ fun MessageAlbum(messages: List<MessageUiItem.MessageItem>) {
                                 .height(320.dp)
                                 .width(256.dp)
                                 .maskClip(MaterialTheme.shapes.medium),
+                            messageId = messages[id].message.id,
                             photo = content.photo,
                             isSending = isSending,
+                            uploadProgress =  { 0.0F },
+                            onMediaClicked = onMediaClicked,
                             isFailed = isFailed,
-                            uploadProgress =  { 0.0F } // TODO
+                            // TODO
                         )
                     }
 
@@ -99,11 +103,14 @@ fun MessageAlbum(messages: List<MessageUiItem.MessageItem>) {
                                 .height(320.dp)
                                 .width(256.dp)
                                 .maskClip(MaterialTheme.shapes.medium),
+                            messageId = messages[id].message.id,
                             video = content.video,
-                            isSending = isSending,
-                            isFailed = isFailed,
                             videoCover = content.cover,
-                            uploadProgress =  { 0.0F } // TODO
+                            isSending = isSending,
+                            uploadProgress =  { 0.0F },
+                            onMediaClicked = onMediaClicked,
+                            isFailed = isFailed,
+                            // TODO
                         )
                     }
                     else -> { }

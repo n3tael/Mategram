@@ -92,6 +92,56 @@ fun ChatStatus.toStringKey() : String {
     }
 }
 
+data class ChatAdministratorRights(
+    val canManageChat: Boolean = false,
+    val canChangeInfo: Boolean = false,
+    val canPostMessages: Boolean = false,
+    val canEditMessages: Boolean = false,
+    val canDeleteMessages: Boolean = false,
+    val canInviteUsers: Boolean = false,
+    val canRestrictMembers: Boolean = false,
+    val canPinMessages: Boolean = false,
+    val canManageTopics: Boolean = false,
+    val canPromoteMembers: Boolean = false,
+    val canManageVideoChats: Boolean = false,
+    val canPostStories: Boolean = false,
+    val canEditStories: Boolean = false,
+    val canDeleteStories: Boolean = false,
+    val canManageDirectMessages: Boolean = false,
+    val isAnonymous: Boolean = false
+)
+
+sealed interface ChatMemberStatus {
+
+    data class Creator(
+        val customTitle: String = "",
+        val isAnonymous: Boolean = false,
+        val isMember: Boolean = false
+    ) : ChatMemberStatus
+
+    data class Administrator(
+        val customTitle: String = "",
+        val canBeEdited: Boolean = false,
+        val rights: ChatAdministratorRights
+    ) : ChatMemberStatus
+
+    data class Member(
+        val memberUntilDate: Int = 0
+    ) : ChatMemberStatus
+
+    data class Restricted(
+        val isMember: Boolean = false,
+        val restrictedUntilDate: Int = 0,
+        val permissions: ChatPermissions
+    ) : ChatMemberStatus
+
+    data object Left : ChatMemberStatus
+
+    data class Banned(
+        val bannedUntilDate: Int = 0
+    ) : ChatMemberStatus
+}
+
 data class Chat(
     val id: Long,
     val type: ChatType,
@@ -135,4 +185,8 @@ data class Chat(
     val clientData: String,
 
     val status: ChatStatus = ChatStatus.Empty,
+
+    val myMemberStatus: ChatMemberStatus? = null,
+
+    val memberCount: Int? = null
 )

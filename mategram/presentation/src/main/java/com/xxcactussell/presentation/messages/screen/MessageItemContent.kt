@@ -13,7 +13,9 @@ fun MessageItemContent(
     bottomCorner: Dp,
     needSenderName: Boolean,
     needAvatar: Boolean,
-    isGroup: Boolean
+    isGroup: Boolean,
+    isUnread: Boolean,
+    onMediaClicked: (Long) -> Unit
 ) {
     when(message) {
         is MessageUiItem.DateSeparator -> {
@@ -39,8 +41,9 @@ fun MessageItemContent(
                     needAvatar = needAvatar,
                     isGroup = isGroup,
                     bottomCorner = bottomCorner,
+                    isUnread = isUnread,
                 ) {
-                    MessageContent(message = message)
+                    MessageContent(message = message, onMediaClicked = onMediaClicked)
                 }
             }
         }
@@ -61,8 +64,9 @@ fun MessageItemContent(
                 needAvatar = needAvatar,
                 isGroup = isGroup,
                 needSenderName = needSenderName,
+                isUnread = isUnread
             ) {
-                MessageAlbum(messages = message.messages)
+                MessageAlbum(messages = message.messages, onMediaClicked = onMediaClicked)
             }
         }
     }

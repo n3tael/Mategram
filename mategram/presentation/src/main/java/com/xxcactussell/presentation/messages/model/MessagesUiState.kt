@@ -21,7 +21,8 @@ data class MessagesUiState(
     val unreadBelowCount: Int = 0,
     val showAttachmentsMenu: Boolean = false,
     val chatStatusStringKey: String? = null,
-    val wasOnline: Int = 0
+    val wasOnline: Int = 0,
+    val attachmentsType: String? = null
 )
 
 sealed interface MessagesEvent {

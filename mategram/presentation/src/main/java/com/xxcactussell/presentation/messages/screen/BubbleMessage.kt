@@ -1,5 +1,7 @@
 package com.xxcactussell.presentation.messages.screen
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -8,28 +10,37 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AccessTime
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.xxcactussell.domain.messages.model.MessageStatus
 import com.xxcactussell.presentation.chats.screen.ChatAvatar
 import com.xxcactussell.presentation.messages.model.MessageUiItem
 import com.xxcactussell.presentation.messages.model.getAvatar
+import kotlin.concurrent.atomics.AtomicLongArray
 import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun BubbleMessage(
     message: MessageUiItem,
+    isUnread: Boolean,
     isOutgoing: Boolean,
-    isUnread: Boolean = false,
     hasBubble: Boolean,
     topCorner: Dp,
     bottomCorner: Dp,
@@ -39,6 +50,7 @@ fun BubbleMessage(
     content: @Composable (() -> Unit)
 ) {
     val alignment = if (isOutgoing) Alignment.Companion.CenterEnd else Alignment.Companion.CenterStart
+
     val backgroundColor = if (!hasBubble) {
         Color.Companion.Transparent
     } else {
@@ -59,6 +71,51 @@ fun BubbleMessage(
     else {
         if (isGroup) 42.dp
         else 0.dp
+    }
+
+    val sendingState = when (message) {
+        is MessageUiItem.MessageItem -> message.message.sendingState
+        is MessageUiItem.AlbumItem -> {
+            if (message.messages.any { it.message.sendingState is MessageStatus.Failed }) {
+                message.messages.firstOrNull { it.message.sendingState is MessageStatus.Failed }?.message?.sendingState
+            } else if (message.messages.any { it.message.sendingState is MessageStatus.Pending }) {
+                message.messages.firstOrNull { it.message.sendingState is MessageStatus.Pending }?.message?.sendingState
+            } else {
+                null
+            }
+        }
+        else -> null
+    }
+
+    val statusBackgroundColor = when(sendingState) {
+        is MessageStatus.Failed -> {
+            MaterialTheme.colorScheme.error
+        }
+        else -> {
+            Color.Transparent
+        }
+    }
+
+    val statusIcon = when(sendingState) {
+        is MessageStatus.Failed -> {
+            Icons.Rounded.ErrorOutline
+        }
+        is MessageStatus.Pending -> {
+            Icons.Rounded.AccessTime
+        }
+        else -> {
+            Icons.Rounded.Check
+        }
+    }
+
+    val statusIconColor = when(sendingState) {
+        is MessageStatus.Failed -> MaterialTheme.colorScheme.onError
+        else -> MaterialTheme.colorScheme.primary
+    }
+
+    val statusIconSize = when(sendingState) {
+        is MessageStatus.Failed -> 12.dp
+        else -> 16.dp
     }
 
     Box(
@@ -85,11 +142,31 @@ fun BubbleMessage(
                     )[abs(message.getAvatar()?.chatId?.rem(3) ?: 0).toInt()]
                 )
             }
-            Surface(
-                color = backgroundColor,
-                shape = shape
-            ) {
-                content()
+
+            Box {
+                Surface(
+                    color = backgroundColor,
+                    shape = shape
+                ) {
+                    content()
+                }
+                if (isUnread && isOutgoing) {
+                    Surface(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .align(Alignment.BottomStart)
+                            .offset((-20).dp),
+                        color = statusBackgroundColor,
+                        shape = CircleShape
+                    ) {
+                        Icon(
+                            modifier = Modifier.requiredSize(statusIconSize),
+                            imageVector = statusIcon,
+                            tint = statusIconColor,
+                            contentDescription = ""
+                        )
+                    }
+                }
             }
 
             if (needAvatar) {

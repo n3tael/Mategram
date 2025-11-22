@@ -23,6 +23,8 @@ import javax.inject.Inject
 interface MessagesRepository {
     suspend fun getChatHistory(chatId: Long, fromMessageId: Long, limit: Int) : List<Message>
     fun observeNewMessages() : Flow<Message>
+    fun observeSucceededMessages() : Flow<Pair<Long, Message>>
+    fun observeLastReadOutboxMessage() : Flow<Pair<Long, Long>>
     suspend fun openChat(chatId: Long) : Chat?
 
     fun closeChat(chatId: Long)
@@ -32,6 +34,20 @@ interface MessagesRepository {
     suspend fun sendMessage(chatId: Long, inputMessageContents: List<InputMessageContent>, replyToMessageId: Long = 0, messageThreadId: Long = 0) : List<Message>
 
     fun markMessageAsRead(chatId: Long, messageId: Long, source: MessageSource, forceRead: Boolean = false)
+    suspend fun searchMediaMessages(chatId: Long, fromMessageId: Long, offset: Int, limit: Int) : List<Message>
+}
+
+class GetChatMediaHistoryUseCase @Inject constructor(
+    private val messageRepository: MessagesRepository
+) {
+    suspend operator fun invoke(chatId: Long, aroundMessageId: Long, limit: Int = 30): List<Message> {
+        return messageRepository.searchMediaMessages(
+            chatId = chatId,
+            fromMessageId = aroundMessageId,
+            offset = -(limit / 2),
+            limit = limit
+        )
+    }
 }
 
 class GetSendersInfoUseCase @Inject constructor(
@@ -64,6 +80,14 @@ class GetSendersInfoUseCase @Inject constructor(
 }
 class ObserveNewMessagesUseCase @Inject constructor(private val repository: MessagesRepository) {
     operator fun invoke() : Flow<Message> = repository.observeNewMessages()
+}
+
+class ObserveSucceededMessagesUseCase @Inject constructor(private val repository: MessagesRepository) {
+    operator fun invoke() : Flow<Pair<Long, Message>> = repository.observeSucceededMessages()
+}
+
+class ObserveLastReadOutboxMessageUseCase @Inject constructor(private val repository: MessagesRepository) {
+    operator fun invoke() : Flow<Pair<Long, Long>> = repository.observeLastReadOutboxMessage()
 }
 
 class GetChatHistoryUseCase @Inject constructor(private val repository: MessagesRepository) {
@@ -110,7 +134,8 @@ class BuildMessageContentUseCase @Inject constructor(
     suspend operator fun invoke(
         uris: List<Uri>,
         captionText: String,
-        captionEntities: List<TextEntity> = emptyList()
+        captionEntities: List<TextEntity> = emptyList(),
+        attachmentsType: String? = null
     ): List<InputMessageContent> = withContext(Dispatchers.IO) {
 
         val contentList = uris.mapNotNull { uri ->
@@ -124,39 +149,52 @@ class BuildMessageContentUseCase @Inject constructor(
                 captionEntities
             )
 
-            when {
-                mimeType.startsWith("image/") && !mimeType.endsWith("/gif") -> {
-                    val meta = fileHelper.extractMediaMetadata(uri)
-                    InputMessageContent.Photo(
-                        photo = inputFile,
-                        thumbnail = InputThumbnail(inputFile, meta.width, meta.height),
-                        width = meta.width,
-                        height = meta.height,
-                        caption = caption,
-                        hasSpoiler = false
-                    )
-                }
+            when(attachmentsType) {
+                "Media" -> {
+                    when {
+                        mimeType.startsWith("image/") && !mimeType.endsWith("/gif") -> {
+                            val meta = fileHelper.extractMediaMetadata(uri)
+                            InputMessageContent.Photo(
+                                photo = inputFile,
+                                thumbnail = InputThumbnail(inputFile, meta.width, meta.height),
+                                width = meta.width,
+                                height = meta.height,
+                                caption = caption,
+                                hasSpoiler = false
+                            )
+                        }
 
-                mimeType.startsWith("video/") -> {
-                    val meta = fileHelper.extractMediaMetadata(uri)
-                    InputMessageContent.Video(
-                        video = inputFile,
-                        thumbnail = InputThumbnail(inputFile, meta.width, meta.height),
-                        cover = inputFile,
-                        startTimestamp = 0,
-                        duration = meta.duration,
-                        width = meta.width,
-                        height = meta.height,
-                        caption = caption
-                    )
-                }
+                        mimeType.startsWith("video/") -> {
+                            val meta = fileHelper.extractMediaMetadata(uri)
+                            InputMessageContent.Video(
+                                video = inputFile,
+                                thumbnail = InputThumbnail(inputFile, meta.width, meta.height),
+                                cover = inputFile,
+                                startTimestamp = 0,
+                                duration = meta.duration,
+                                width = meta.width,
+                                height = meta.height,
+                                caption = caption
+                            )
+                        }
 
-                mimeType.startsWith("audio/") -> {
-                    InputMessageContent.Audio(
-                        audio = inputFile,
-                        albumCoverThumbnail = InputThumbnail(inputFile, 0, 0),
-                        duration = 0, title = "", performer = "", caption = caption
-                    )
+                        mimeType.startsWith("audio/") -> {
+                            InputMessageContent.Audio(
+                                audio = inputFile,
+                                albumCoverThumbnail = InputThumbnail(inputFile, 0, 0),
+                                duration = 0, title = "", performer = "", caption = caption
+                            )
+                        }
+
+                        else -> {
+                            InputMessageContent.Document(
+                                document = inputFile,
+                                thumbnail = InputThumbnail(inputFile, 0, 0),
+                                disableContentTypeDetection = false,
+                                caption = caption
+                            )
+                        }
+                    }
                 }
 
                 else -> {
@@ -174,7 +212,7 @@ class BuildMessageContentUseCase @Inject constructor(
 
         if (uris.size > 1) {
             finalContentList.addAll(contentList)
-        } else if (uris.size == 1 && captionText.isNotBlank()) {
+        } else if (uris.size == 1) {
             finalContentList.addAll(contentList)
         } else if (captionText.isNotBlank()) {
             finalContentList.add(InputMessageContent.Text(FormattedText(captionText, captionEntities)))

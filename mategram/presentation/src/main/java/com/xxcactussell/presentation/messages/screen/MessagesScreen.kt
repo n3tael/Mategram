@@ -17,7 +17,9 @@ import com.xxcactussell.presentation.messages.viewmodel.MessagesViewModelFactory
 fun MessagesScreen(
     chatId: Long,
     onProfileClicked: (Long) -> Unit,
-    onBackHandled: () -> Unit
+    onCameraClicked: () -> Unit,
+    onBackHandled: () -> Unit,
+    onMediaClicked: (Long) -> Unit,
 ) {
     val viewModel: MessagesViewModel = hiltViewModel(
         creationCallback = { factory: MessagesViewModelFactory ->
@@ -48,6 +50,15 @@ fun MessagesScreen(
         }
     )
 
+    val audioPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments(),
+        onResult = { uris ->
+            if (uris.isNotEmpty()) {
+                viewModel.onEvent(InputEvent.MediaSelected(uris))
+            }
+        }
+    )
+
     LaunchedEffect(effectsFlow) {
         effectsFlow.collect { effect ->
             when (effect) {
@@ -58,7 +69,7 @@ fun MessagesScreen(
                     documentPickerLauncher.launch(arrayOf("*/*"))
                 }
                 ChatEffect.LaunchMusicPicker -> {
-                    documentPickerLauncher.launch(arrayOf("audio/*"))
+                    audioPickerLauncher.launch(arrayOf("audio/*"))
                 }
                 ChatEffect.LaunchContactPicker -> {
                     /* TODO */
@@ -71,6 +82,8 @@ fun MessagesScreen(
         state = state,
         onProfileClicked = onProfileClicked,
         onEvent = viewModel::onEvent,
-        onBackHandle = onBackHandled
+        onCameraClicked = onCameraClicked,
+        onBackHandle = onBackHandled,
+        onMediaClicked = onMediaClicked
     )
 }

@@ -17,9 +17,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
 import java.io.File
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 @Singleton
 class TdClientManagerImpl @Inject constructor() : TdClientManager {
@@ -30,12 +33,12 @@ class TdClientManagerImpl @Inject constructor() : TdClientManager {
     private val _authUpdatesFlow = MutableStateFlow<TdApi.AuthorizationState>(TdApi.AuthorizationStateWaitTdlibParameters())
     override val authUpdatesFlow: StateFlow<TdApi.AuthorizationState> = _authUpdatesFlow.asStateFlow()
 
-    private val _newMessagesFlow = MutableSharedFlow<TdApi.UpdateNewMessage>(
+    private val _newMessagesFlow = MutableSharedFlow<TdApi.Update>(
         replay = 25,
         extraBufferCapacity = Int.MAX_VALUE,
         onBufferOverflow = BufferOverflow.SUSPEND
     )
-    override val newMessagesFlow: SharedFlow<TdApi.UpdateNewMessage> = _newMessagesFlow
+    override val newMessagesFlow: SharedFlow<TdApi.Update> = _newMessagesFlow
 
     private val _chatsUpdatesFlow = MutableSharedFlow<TdApi.Update>(
         replay = 25,
@@ -99,8 +102,13 @@ class TdClientManagerImpl @Inject constructor() : TdClientManager {
                         _chatsUpdatesFlow.tryEmit(update)
                     is TdApi.UpdateFile ->
                         _filesUpdatesFlow.tryEmit(update)
+                    is TdApi.UpdateMessageSendFailed,
+                    is TdApi.UpdateMessageSendSucceeded,
                     is TdApi.UpdateNewMessage ->
                         _newMessagesFlow.tryEmit(update)
+                    is TdApi.UpdateChatReadOutbox -> {
+                        _chatsUpdatesFlow.tryEmit(update)
+                    }
                 }
                 _updatesFlow.tryEmit(update)
             }
@@ -122,4 +130,17 @@ class TdClientManagerImpl @Inject constructor() : TdClientManager {
     override fun send(query: TdApi.Function<*>, handler: Client.ResultHandler?) {
         _client.send(query, handler)
     }
+
+    override suspend fun <T : TdApi.Object> sendSuspend(query: TdApi.Function<*>): T =
+        suspendCancellableCoroutine { cont ->
+            this.send(query) { result ->
+                if (result.constructor == TdApi.Error.CONSTRUCTOR) {
+                    val error = result as TdApi.Error
+                    cont.resumeWithException(RuntimeException("TDLib Error: ${error.code} - ${error.message}"))
+                } else {
+                    @Suppress("UNCHECKED_CAST")
+                    cont.resume(result as T)
+                }
+            }
+        }
 }

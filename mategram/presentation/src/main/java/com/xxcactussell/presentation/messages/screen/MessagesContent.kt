@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,9 +38,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,7 +48,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -104,7 +100,9 @@ fun MessagesContent(
     state: MessagesUiState,
     onProfileClicked: (Long) -> Unit,
     onEvent: (Any) -> Unit,
-    onBackHandle: () -> Unit
+    onBackHandle: () -> Unit,
+    onCameraClicked: () -> Unit,
+    onMediaClicked: (Long) -> Unit
 ) {
     val scope = rememberCoroutineScope()
 
@@ -168,8 +166,13 @@ fun MessagesContent(
                                 )
                                 if (state.chat != null) {
                                     val key = state.chatStatusStringKey
+                                    val supportingText = if (state.chat.type is ChatType.BasicGroup || state.chat.type is ChatType.Supergroup) {
+                                        localizedString(key ?: "", 1, state.chat.memberCount ?: 0)
+                                    } else {
+                                        localizedString(key ?: "", 1, if (key == "LastSeenFormatted") formatTimestampToDate(state.wasOnline) else "")
+                                    }
                                     Text(
-                                        text = localizedString(key ?: "", 1, if (key == "LastSeenFormatted") formatTimestampToDate(state.wasOnline) else ""),
+                                        text = supportingText,
                                         overflow = TextOverflow.Ellipsis,
                                         style = MaterialTheme.typography.labelMedium,
                                         maxLines = 1
@@ -201,7 +204,8 @@ fun MessagesContent(
         },
         bottomBar = { InputMessageField(
             state = state,
-            onEvent = onEvent
+            onEvent = onEvent,
+            onCameraClicked = onCameraClicked
         ) }
     ) { paddingValues ->
         Box(
@@ -225,7 +229,9 @@ fun MessagesContent(
             ) {
                 itemsIndexed(
                     items = state.messages,
-                    key = { _, message -> message.key }
+                    key = { _, message ->
+                        message.key
+                    }
                 ) { index, message ->
                     val nextPersonId = state.messages.getOrNull(index + 1)?.getMessageSenderId()
                     val prevPersonId = state.messages.getOrNull(index - 1)?.getMessageSenderId()
@@ -272,6 +278,32 @@ fun MessagesContent(
                     val needAvatar = message.getMessageSenderId() != prevPersonId && message.isOutgoing() == false && (state.chat?.type is ChatType.BasicGroup || state.chat?.type is ChatType.Supergroup && !(state.chat.type as ChatType.Supergroup).isChannel)
                     val needSenderName = message.getMessageSenderId() != nextPersonId && message.isOutgoing() == false && (state.chat?.type is ChatType.BasicGroup || state.chat?.type is ChatType.Supergroup && !(state.chat.type as ChatType.Supergroup).isChannel)
 
+                    val isUnread = when(message) {
+                        is MessageUiItem.AlbumItem -> {
+                            message.messages.any {
+                                when (it.message.isOutgoing) {
+                                    true -> {
+                                        it.message.id > (state.chat?.lastReadOutboxMessageId ?: 0L)
+                                    }
+                                    false -> {
+                                        it.message.id > (state.chat?.lastReadInboxMessageId ?: 0L)
+                                    }
+                                }
+                            }
+                        }
+                        is MessageUiItem.MessageItem -> {
+                            when (message.message.isOutgoing) {
+                                true -> {
+                                    message.message.id > (state.chat?.lastReadOutboxMessageId ?: 0L)
+                                }
+                                false -> {
+                                    message.message.id > (state.chat?.lastReadInboxMessageId ?: 0L)
+                                }
+                            }
+                        }
+                        else -> false
+                    }
+
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -297,7 +329,7 @@ fun MessagesContent(
                             },
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        MessageItemContent(message = message, topCorner = topCorner, bottomCorner = bottomCorner, needSenderName = needSenderName, needAvatar = needAvatar, isGroup = state.chat?.type is ChatType.BasicGroup || state.chat?.type is ChatType.Supergroup && !(state.chat.type as ChatType.Supergroup).isChannel)
+                        MessageItemContent(message = message, topCorner = topCorner, bottomCorner = bottomCorner, needSenderName = needSenderName, needAvatar = needAvatar, isGroup = state.chat?.type is ChatType.BasicGroup || state.chat?.type is ChatType.Supergroup && !(state.chat.type as ChatType.Supergroup).isChannel, isUnread = isUnread, onMediaClicked = onMediaClicked)
                     }
                 }
                 if (state.isLoadingHistory && state.messages.isNotEmpty()) {
@@ -422,50 +454,6 @@ fun MessagesContent(
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        /* TODO: REDESIGN THIS */
-        AnimatedVisibility(
-            visible = state.showAttachmentsMenu,
-        ) {
-            ModalBottomSheet(
-                onDismissRequest = { onEvent(InputEvent.CloseAttachmentsMenu) },
-            ) {
-                LazyRow(
-                    state = rememberLazyListState(),
-                    contentPadding = PaddingValues(
-                        start = paddingValues.calculateStartPadding(LocalLayoutDirection.current) + 24.dp,
-                        end = paddingValues.calculateEndPadding(LocalLayoutDirection.current) + 24.dp,
-                        bottom = 16.dp
-                    ),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    val size = ButtonDefaults.MediumContainerHeight
-                    state.attachmentEntries.forEachIndexed { index, entry ->
-                        item {
-                            Button(
-                                onClick = {
-                                    onEvent(entry.event)
-                                },
-                                modifier = Modifier.heightIn(size),
-                                contentPadding = ButtonDefaults.contentPaddingFor(size),
-                                shape = when (index) {
-                                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes().shape
-                                    state.attachmentEntries.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes().shape
-                                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes().shape
-                                }
-                            ) {
-                                Icon(
-                                    entry.icon,
-                                    contentDescription = entry.label,
-                                    modifier = Modifier.size(ButtonDefaults.iconSizeFor(size)),
-                                )
-                                Spacer(Modifier.size(ButtonDefaults.iconSpacingFor(size)))
-                                Text( localizedString(entry.label), style = ButtonDefaults.textStyleFor(size))
                             }
                         }
                     }

@@ -58,6 +58,7 @@ class ChatsRepositoryImpl @Inject constructor(
                     is TdApi.UpdateChatPhoto -> update.chatId
                     is TdApi.UpdateUser -> update.user.id
                     is TdApi.UpdateUserStatus -> update.userId
+                    is TdApi.UpdateChatReadOutbox -> update.chatId
                     else -> null
                 }
                 handleChatUpdate(update)
@@ -124,6 +125,13 @@ class ChatsRepositoryImpl @Inject constructor(
 
     private fun handleChatUpdate(update: TdApi.Object) {
         when (update) {
+            is TdApi.UpdateChatReadOutbox -> {
+                val chat = chatsCache[update.chatId]
+                if (chat != null) {
+                    val updatedChat = chat.copy(lastReadOutboxMessageId = update.lastReadOutboxMessageId)
+                    chatsCache[update.chatId] = updatedChat
+                }
+            }
             is TdApi.UpdateChatFolders -> {
                 val mainChatListPosition = update.mainChatListPosition
                 val currentAllChatsFolder = _chatFolders.value.find { it.id == -1 }

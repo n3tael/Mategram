@@ -34,15 +34,15 @@ import com.xxcactussell.presentation.tools.StickerWEBMPlayer
 import com.xxcactussell.presentation.tools.WebPImage
 
 @Composable
-fun MessageContent(message: MessageUiItem.MessageItem) {
+fun MessageContent(message: MessageUiItem.MessageItem, onMediaClicked: (Long) -> Unit) {
     val messageTextColor = MaterialTheme.colorScheme.onSurface
     val isSending = message.message.sendingState is MessageStatus.Pending
     val isFailed = message.message.sendingState is MessageStatus.Failed
 
     when (val content = message.message.content) {
         is MessageContent.Text -> MessageTextContent(content, messageTextColor)
-        is MessageContent.MessagePhoto -> MessagePhotoContent(message, messageTextColor, isSending, isFailed)
-        is MessageContent.MessageVideo -> MessageVideoContent(message, messageTextColor, isSending, isFailed)
+        is MessageContent.MessagePhoto -> MessagePhotoContent(message, messageTextColor, isSending, isFailed, onMediaClicked)
+        is MessageContent.MessageVideo -> MessageVideoContent(message, messageTextColor, isSending, isFailed, onMediaClicked)
         is MessageContent.MessageSticker -> MessageStickerContent(content.sticker, 172.dp)
         is MessageContent.MessageAnimatedEmoji -> MessageStickerContent(content.animatedEmoji.sticker, 92.dp, content.emoji)
         else -> {
@@ -106,7 +106,8 @@ fun MessageVideoContent(
     message: MessageUiItem.MessageItem,
     textColor: Color,
     isSending: Boolean,
-    isFailed: Boolean
+    isFailed: Boolean,
+    onMediaClicked: (Long) -> Unit
 ) {
     val content = message.message.content as MessageContent.MessageVideo
 
@@ -146,10 +147,12 @@ fun MessageVideoContent(
                     }
                 )
                 .clip(RoundedCornerShape(14.dp)),
+            messageId = message.message.id,
             video = content.video,
             isSending = isSending,
             isFailed = isFailed,
             videoCover = content.cover,
+            onMediaClicked = onMediaClicked,
             uploadProgress = { 0.0F } //TODO
         )
         if (!content.showCaptionAboveMedia) {
@@ -163,7 +166,8 @@ fun MessagePhotoContent(
     message: MessageUiItem.MessageItem,
     textColor: Color,
     isSending: Boolean,
-    isFailed: Boolean
+    isFailed: Boolean,
+    onMediaClicked: (Long) -> Unit
 ) {
     val content = message.message.content as MessageContent.MessagePhoto
 
@@ -203,9 +207,11 @@ fun MessagePhotoContent(
                     }
                 )
                 .clip(RoundedCornerShape(14.dp)),
+            messageId = message.message.id,
             photo = content.photo,
             isSending = isSending,
             isFailed = isFailed,
+            onMediaClicked = onMediaClicked,
             uploadProgress = { 0.0F } //TODO
         )
         if (!content.showCaptionAboveMedia) {

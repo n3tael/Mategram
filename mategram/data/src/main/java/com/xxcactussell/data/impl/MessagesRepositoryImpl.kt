@@ -7,6 +7,7 @@ import com.xxcactussell.data.utils.todomain.toDomain
 import com.xxcactussell.data.utils.todata.toData
 import com.xxcactussell.domain.chats.model.Chat
 import com.xxcactussell.domain.chats.model.ChatPhoto
+import com.xxcactussell.domain.chats.model.ChatType
 import com.xxcactussell.domain.chats.model.ProfilePhoto
 import com.xxcactussell.domain.chats.model.User
 import com.xxcactussell.domain.messages.model.InputMessageContent
@@ -39,12 +40,42 @@ class MessagesRepositoryImpl @Inject constructor(
     )
     val newMessagesFlow: SharedFlow<Message> = _newMessages.asSharedFlow()
 
+    private val _succeededMessages = MutableSharedFlow<Pair<Long, Message>>(
+        extraBufferCapacity = 64,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+
+    val _lastReadOutboxIdFlow = MutableSharedFlow<Pair<Long, Long>>(
+        extraBufferCapacity = 10,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     init {
         clientManager.newMessagesFlow
             .onEach { updateNewMessage ->
-                _newMessages.tryEmit(updateNewMessage.message.toDomain())
+                when (updateNewMessage) {
+                    is TdApi.UpdateNewMessage -> {
+                        _newMessages.tryEmit(updateNewMessage.message.toDomain())
+                    }
+                    is TdApi.UpdateMessageSendSucceeded -> {
+                        _succeededMessages.tryEmit(updateNewMessage.oldMessageId to updateNewMessage.message.toDomain())
+                    }
+                    is TdApi.UpdateMessageSendFailed -> {
+                        _succeededMessages.tryEmit(updateNewMessage.oldMessageId to updateNewMessage.message.toDomain())
+                    }
+                }
+
+            }
+            .launchIn(repositoryScope)
+        clientManager.chatsUpdatesFlow
+            .onEach { update ->
+                when(update) {
+                    is TdApi.UpdateChatReadOutbox -> {
+                        _lastReadOutboxIdFlow.tryEmit(update.chatId to update.lastReadOutboxMessageId)
+                    }
+                }
             }
             .launchIn(repositoryScope)
     }
@@ -68,29 +99,64 @@ class MessagesRepositoryImpl @Inject constructor(
 
     override fun observeNewMessages(): Flow<Message> = newMessagesFlow
 
+    override fun observeSucceededMessages() : Flow<Pair<Long, Message>> = _succeededMessages.asSharedFlow()
+
+    override fun observeLastReadOutboxMessage(): Flow<Pair<Long, Long>> = _lastReadOutboxIdFlow.asSharedFlow()
 
     override suspend fun openChat(chatId: Long): Chat? = suspendCancellableCoroutine { continuation ->
         clientManager.send(TdApi.GetChat(chatId)) { result ->
-            if (continuation.isActive) {
-                when (result.constructor) {
-                    TdApi.Chat.CONSTRUCTOR -> {
-                        val tdChat = result as TdApi.Chat
-                        clientManager.send(TdApi.OpenChat(chatId), null)
-                        continuation.resume(tdChat.toDomain())
-                    }
-                    TdApi.Error.CONSTRUCTOR -> {
-                        continuation.resume(null)
-                    }
+            if (!continuation.isActive) return@send
 
-                    else -> {
-                        continuation.resume(null)
+            when (result.constructor) {
+                TdApi.Chat.CONSTRUCTOR -> {
+                    val tdChat = result as TdApi.Chat
+                    var mgChat = tdChat.toDomain()
+                    val type = tdChat.type
+                    when (type) {
+                        is TdApi.ChatTypeBasicGroup -> {
+                            clientManager.send(TdApi.GetBasicGroup(type.basicGroupId)) { groupResult ->
+                                if (groupResult.constructor == TdApi.BasicGroup.CONSTRUCTOR) {
+                                    val bg = groupResult as TdApi.BasicGroup
+                                    mgChat = mgChat.copy(
+                                        myMemberStatus = bg.status.toDomain(),
+                                        memberCount = bg.memberCount
+                                    )
+                                }
+                                clientManager.send(TdApi.OpenChat(chatId), null)
+
+                                if (continuation.isActive) continuation.resume(mgChat)
+                            }
+                        }
+
+                        is TdApi.ChatTypeSupergroup -> {
+                            clientManager.send(TdApi.GetSupergroup(type.supergroupId)) { superResult ->
+                                if (superResult.constructor == TdApi.Supergroup.CONSTRUCTOR) {
+                                    val sg = superResult as TdApi.Supergroup
+                                    mgChat = mgChat.copy(
+                                        myMemberStatus = sg.status.toDomain(),
+                                        memberCount = sg.memberCount
+                                    )
+                                }
+                                clientManager.send(TdApi.OpenChat(chatId), null)
+                                if (continuation.isActive) continuation.resume(mgChat)
+                            }
+                        }
+
+                        else -> {
+                            clientManager.send(TdApi.OpenChat(chatId), null)
+                            if (continuation.isActive) continuation.resume(mgChat)
+                        }
                     }
+                }
+
+                else -> {
+                    if (continuation.isActive) continuation.resume(null)
                 }
             }
         }
 
         continuation.invokeOnCancellation {
-            // TODO
+
         }
     }
 
@@ -217,5 +283,28 @@ class MessagesRepositoryImpl @Inject constructor(
         forceRead: Boolean
     ) {
         clientManager.send(TdApi.ViewMessages(chatId, longArrayOf(messageId), source.toData(), forceRead), null)
+    }
+
+    override suspend fun searchMediaMessages(
+        chatId: Long,
+        fromMessageId: Long,
+        offset: Int,
+        limit: Int,
+    ): List<Message> = suspendCancellableCoroutine { continuation ->
+        val handler = Client.ResultHandler { result ->
+            if (continuation.isActive) {
+                when (result) {
+                    is TdApi.FoundChatMessages -> {
+                        val messages = result.messages.map { it.toDomain() }
+                        continuation.resume(messages)
+                    }
+                    is TdApi.Error -> continuation.resumeWithException(Exception("TDLib error: ${result.code} ${result.message}"))
+                    else -> continuation.resumeWithException(Exception("Unexpected result from sendMessage: $result"))
+                }
+            }
+        }
+
+        clientManager.send(TdApi.SearchChatMessages(chatId, null, "", null, fromMessageId, offset, limit,
+            TdApi.SearchMessagesFilterPhotoAndVideo()), handler)
     }
 }

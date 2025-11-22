@@ -14,7 +14,8 @@ interface TdClientManager {
     val filesUpdatesFlow: SharedFlow<TdApi.UpdateFile>
     val authUpdatesFlow: StateFlow<TdApi.AuthorizationState>
     val chatsUpdatesFlow: SharedFlow<TdApi.Update>
-    val newMessagesFlow: SharedFlow<TdApi.UpdateNewMessage>
+    val newMessagesFlow: SharedFlow<TdApi.Update>
     fun send(query: TdApi.Function<*>, handler: Client.ResultHandler? = null)
     val chatFoldersUpdatesFlow: SharedFlow<TdApi.Update>
+    suspend fun <T : TdApi.Object> sendSuspend(query: TdApi.Function<*>): T
 }

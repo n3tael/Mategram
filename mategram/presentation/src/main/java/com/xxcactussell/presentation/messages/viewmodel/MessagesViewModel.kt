@@ -13,6 +13,7 @@ import androidx.compose.material.icons.outlined.Poll
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xxcactussell.domain.chats.model.Chat
+import com.xxcactussell.domain.chats.model.ChatMemberStatus
 import com.xxcactussell.domain.chats.model.ChatStatus
 import com.xxcactussell.domain.chats.model.ChatType
 import com.xxcactussell.domain.chats.model.User
@@ -28,12 +29,15 @@ import com.xxcactussell.domain.messages.repository.CloseChatUseCase
 import com.xxcactussell.domain.messages.repository.GetMessagesWithAlbumBoundaryUseCase
 import com.xxcactussell.domain.messages.repository.GetSendersInfoUseCase
 import com.xxcactussell.domain.messages.repository.MarkMessageAsRead
+import com.xxcactussell.domain.messages.repository.ObserveLastReadOutboxMessageUseCase
 import com.xxcactussell.domain.messages.repository.ObserveNewMessagesUseCase
+import com.xxcactussell.domain.messages.repository.ObserveSucceededMessagesUseCase
 import com.xxcactussell.domain.messages.repository.OpenChatUseCase
 import com.xxcactussell.domain.messages.repository.SendMessageUseCase
 import com.xxcactussell.presentation.chats.model.AttachmentEntry
 import com.xxcactussell.presentation.chats.model.AvatarUiState
 import com.xxcactussell.presentation.chats.model.ChatEffect
+import com.xxcactussell.presentation.localization.localizedString
 import com.xxcactussell.presentation.messages.model.AttachmentEvent
 import com.xxcactussell.presentation.messages.model.InputEvent
 import com.xxcactussell.presentation.messages.model.MessageUiItem
@@ -49,6 +53,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -62,6 +67,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import okhttp3.internal.cacheGet
 
 
 @AssistedFactory
@@ -78,6 +85,8 @@ class MessagesViewModel @AssistedInject constructor(
     private val buildMessageContent: BuildMessageContentUseCase,
     private val getSendersInfoUseCase: GetSendersInfoUseCase,
     observeNewMessagesUseCase: ObserveNewMessagesUseCase,
+    observeSucceedMessagesUseCase: ObserveSucceededMessagesUseCase,
+    observeLastReadOutboxMessageUseCase: ObserveLastReadOutboxMessageUseCase,
     private val markMessageAsRead: MarkMessageAsRead,
     private val getMessagesWithAlbumBoundaryUseCase: GetMessagesWithAlbumBoundaryUseCase,
     @Assisted private val chatId: Long
@@ -118,14 +127,14 @@ class MessagesViewModel @AssistedInject constructor(
                         is ChatType.BasicGroup -> {
                             _uiState.update {
                                 it.copy(
-                                    chatStatusStringKey = "group"
+                                    chatStatusStringKey = "Members"
                                 )
                             }
                         }
                         is ChatType.Supergroup -> {
                             _uiState.update {
                                 it.copy(
-                                    chatStatusStringKey = "supergroup"
+                                    chatStatusStringKey = if ((chat.type as ChatType.Supergroup).isChannel) "Subscribers" else "Members"
                                 )
                             }
                         }
@@ -159,6 +168,24 @@ class MessagesViewModel @AssistedInject constructor(
                 }
             }
             .launchIn(viewModelScope)
+
+        observeSucceedMessagesUseCase()
+            .onEach { (oldId, updatedMessage) ->
+                processSucceededMessage(oldId, updatedMessage)
+            }
+            .launchIn(viewModelScope)
+
+        observeLastReadOutboxMessageUseCase()
+            .onEach { (chatId, messageId) ->
+                if (chatId == _uiState.value.chat?.id) {
+                    _uiState.update {
+                        it.copy(
+                            chat = it.chat?.copy(lastReadOutboxMessageId = messageId)
+                        )
+                    }
+                }
+            }
+            .launchIn(viewModelScope)
     }
 
     private fun observeStatus() {
@@ -188,6 +215,38 @@ class MessagesViewModel @AssistedInject constructor(
         }
     }
 
+    private fun processSucceededMessage(oldId: Long, updatedMessage: Message) {
+        _uiState.update { currentState ->
+            val updatedMessages = currentState.messages.map { uiItem ->
+                when (uiItem) {
+                    is MessageUiItem.MessageItem -> {
+                        if (uiItem.message.id == oldId) {
+                            uiItem.copy(message = updatedMessage)
+                        } else {
+                            uiItem
+                        }
+                    }
+                    is MessageUiItem.AlbumItem -> {
+                        val messageIndex = uiItem.messages.indexOfFirst { it.message.id == oldId }
+
+                        if (messageIndex != -1) {
+                            val newAlbumMessages = uiItem.messages.toMutableList()
+                            val oldMessageItem = newAlbumMessages[messageIndex]
+                            newAlbumMessages[messageIndex] = oldMessageItem.copy(message = updatedMessage)
+                            uiItem.copy(messages = newAlbumMessages)
+                        } else {
+                            uiItem
+                        }
+                    }
+                    is MessageUiItem.DateSeparator -> {
+                        uiItem
+                    }
+                }
+            }
+            currentState.copy(messages = updatedMessages)
+        }
+    }
+
     private fun processNewMessages(newRawMessages: List<Message>) {
         viewModelScope.launch {
             val uniqueSenderIds = newRawMessages
@@ -196,37 +255,44 @@ class MessagesViewModel @AssistedInject constructor(
 
             val sendersMap = getSendersInfoUseCase(uniqueSenderIds)
 
-            val newUiItems = mapAndGroupMessagesToUi(newRawMessages, sendersMap)
+            val newUiItems = withContext(Dispatchers.Default) {
+                mapAndGroupMessagesToUi(newRawMessages, sendersMap)
+            }
+
+            val newItemsMap = withContext(Dispatchers.Default) {
+                newUiItems
+                    .mapNotNull { uiItem -> uiItem.getMessageId()?.let { id -> id to uiItem } }
+                    .toMap()
+            }
 
             _uiState.update { currentState ->
                 val existingIdMap = currentState.messages
                     .asSequence()
-                    .mapNotNull { uiItem ->
-                        uiItem.getMessageId()?.let { id -> id to uiItem }
-                    }
+                    .mapNotNull { uiItem -> uiItem.getMessageId()?.let { id -> id to uiItem } }
                     .toMap()
 
-                val uniqueNewUiItems = newUiItems.filter { newItem ->
+                val updatedMessages = currentState.messages.map { existingItem ->
+                    val id = existingItem.getMessageId()
+                    newItemsMap[id] ?: existingItem
+                }
+
+                val trulyNewItems = newUiItems.filter { newItem ->
                     val id = newItem.getMessageId()
                     id != null && !existingIdMap.containsKey(id)
-                }.toMutableList()
+                }
 
-                val newestNewMessageDate = uniqueNewUiItems.firstOrNull()?.getMessageDate()
+                val newestNewMessageDate = trulyNewItems.firstOrNull()?.getMessageDate()
                 val oldestExistingMessageDate = currentState.messages.firstOrNull()?.getMessageDate()
 
                 val shouldInsertDateSeparator = newestNewMessageDate != null &&
                         oldestExistingMessageDate != null &&
                         !isSameDay(newestNewMessageDate, oldestExistingMessageDate)
-
                 val finalMessages = mutableListOf<MessageUiItem>()
-
-                finalMessages.addAll(uniqueNewUiItems)
-
+                finalMessages.addAll(trulyNewItems)
                 if (shouldInsertDateSeparator) {
                     finalMessages.add(MessageUiItem.DateSeparator(oldestExistingMessageDate))
                 }
-
-                finalMessages.addAll(currentState.messages)
+                finalMessages.addAll(updatedMessages)
 
                 currentState.copy(
                     messages = finalMessages.toList(),
@@ -239,7 +305,9 @@ class MessagesViewModel @AssistedInject constructor(
         val attachmentEntries = mutableListOf<AttachmentEntry>()
         val recordingMode = mutableListOf<RecordingMode>()
 
-        if (chat.permissions.canSendPhotos || chat.permissions.canSendVideos) attachmentEntries.add(
+        if (chat.permissions.canSendPhotos || chat.permissions.canSendVideos
+            || chat.myMemberStatus is ChatMemberStatus.Creator || (chat.myMemberStatus is ChatMemberStatus.Administrator && (chat.myMemberStatus as ChatMemberStatus.Administrator).rights.canPostMessages)
+        ) attachmentEntries.add(
             AttachmentEntry(
                 icon = Icons.Outlined.InsertPhoto,
                 label = "ChatGallery",
@@ -247,14 +315,18 @@ class MessagesViewModel @AssistedInject constructor(
             )
         )
 
-        if (chat.permissions.canSendDocuments) attachmentEntries.add(
+        if (chat.permissions.canSendDocuments
+            || chat.myMemberStatus is ChatMemberStatus.Creator || (chat.myMemberStatus is ChatMemberStatus.Administrator && (chat.myMemberStatus as ChatMemberStatus.Administrator).rights.canPostMessages)
+        ) attachmentEntries.add(
             AttachmentEntry(
                 icon = Icons.AutoMirrored.Outlined.InsertDriveFile,
                 label = "ChatDocument",
                 event = AttachmentEvent.ChatDocument
             )
         )
-        if (chat.permissions.canSendPolls) {
+        if (chat.permissions.canSendPolls
+            || chat.myMemberStatus is ChatMemberStatus.Creator || (chat.myMemberStatus is ChatMemberStatus.Administrator && (chat.myMemberStatus as ChatMemberStatus.Administrator).rights.canPostMessages)
+        ) {
             attachmentEntries.add(
                 AttachmentEntry(
                     icon = Icons.Outlined.Poll,
@@ -270,7 +342,9 @@ class MessagesViewModel @AssistedInject constructor(
                 )
             )
         }
-        if (chat.permissions.canSendAudios) {
+        if (chat.permissions.canSendAudios
+            || chat.myMemberStatus is ChatMemberStatus.Creator || (chat.myMemberStatus is ChatMemberStatus.Administrator && (chat.myMemberStatus as ChatMemberStatus.Administrator).rights.canPostMessages)
+        ) {
             attachmentEntries.add(
                 AttachmentEntry(
                     icon = Icons.Outlined.MusicNote,
@@ -279,7 +353,9 @@ class MessagesViewModel @AssistedInject constructor(
                 )
             )
         }
-        if (chat.permissions.canSendBasicMessages) {
+        if (chat.permissions.canSendBasicMessages
+            || chat.myMemberStatus is ChatMemberStatus.Creator || (chat.myMemberStatus is ChatMemberStatus.Administrator && (chat.myMemberStatus as ChatMemberStatus.Administrator).rights.canPostMessages)
+        ) {
             attachmentEntries.add(
                 AttachmentEntry(
                     icon = Icons.Outlined.Person,
@@ -295,11 +371,17 @@ class MessagesViewModel @AssistedInject constructor(
                 )
             )
         }
-        if (chat.permissions.canSendVoiceNotes) _uiState.update { it.copy(recordingMode = RecordingMode.Audio,) }
+        if (chat.permissions.canSendVoiceNotes
+            || chat.myMemberStatus is ChatMemberStatus.Creator || (chat.myMemberStatus is ChatMemberStatus.Administrator && (chat.myMemberStatus as ChatMemberStatus.Administrator).rights.canPostMessages)
+        ) _uiState.update { it.copy(recordingMode = RecordingMode.Audio,) }
         else if (chat.permissions.canSendVideoNotes) _uiState.update { it.copy(recordingMode = RecordingMode.Video,) }
 
-        if (chat.permissions.canSendVoiceNotes) recordingMode.add(RecordingMode.Audio)
-        if (chat.permissions.canSendVideoNotes) recordingMode.add(RecordingMode.Video)
+        if (chat.permissions.canSendVoiceNotes
+            || chat.myMemberStatus is ChatMemberStatus.Creator || (chat.myMemberStatus is ChatMemberStatus.Administrator && (chat.myMemberStatus as ChatMemberStatus.Administrator).rights.canPostMessages)
+        ) recordingMode.add(RecordingMode.Audio)
+        if (chat.permissions.canSendVideoNotes
+            || chat.myMemberStatus is ChatMemberStatus.Creator || (chat.myMemberStatus is ChatMemberStatus.Administrator && (chat.myMemberStatus as ChatMemberStatus.Administrator).rights.canPostMessages)
+        ) recordingMode.add(RecordingMode.Video)
 
         if (recordingMode.isNotEmpty()) _uiState.update { it.copy(availableRecordingMode = recordingMode,) }
 
@@ -375,8 +457,8 @@ class MessagesViewModel @AssistedInject constructor(
                     if (_uiState.value.inputMessage.isNotBlank() || _uiState.value.selectedMediaUris.isNotEmpty()) {
                         val currentState = _uiState.value
                         val text = currentState.inputMessage
-
-                        val contents: List<InputMessageContent> = buildMessageContent(currentState.selectedMediaUris, text)
+                        val attachmentsType = currentState.attachmentsType
+                        val contents: List<InputMessageContent> = buildMessageContent(currentState.selectedMediaUris, text, emptyList(), attachmentsType)
 
                         onMessagesEvent(SendClicked(contents))
                     }
@@ -420,7 +502,7 @@ class MessagesViewModel @AssistedInject constructor(
             }
 
             is InputEvent.MediaSelected -> {
-                _uiState.update { it.copy(selectedMediaUris = event.uris) }
+                _uiState.update { it.copy(selectedMediaUris = event.uris, attachmentsType = "Media") }
             }
         }
     }
@@ -561,45 +643,39 @@ class MessagesViewModel @AssistedInject constructor(
         sendersMap: Map<Long, Any>?
     ): List<MessageUiItem> {
         if (rawMessages.isNullOrEmpty()) return emptyList()
+        val groups = rawMessages.groupBy { it.mediaAlbumId }
+        val events = mutableListOf<Pair<Int, MessageUiItem>>()
 
-        val messageGroups = mutableListOf<List<Message>>()
-        var i = 0
-
-        while (i < rawMessages.size) {
-            val currentMessage = rawMessages[i]
-
-            if (currentMessage.mediaAlbumId != 0L) {
-                val albumMessages = rawMessages.filter { it.mediaAlbumId == currentMessage.mediaAlbumId }
-                    .sortedBy { it.id }
-                messageGroups.add(albumMessages)
-                i += albumMessages.size
+        groups.forEach { (albumId, messages) ->
+            if (albumId == 0L) {
+                messages.forEach { msg ->
+                    val sender = sendersMap?.get(msg.senderId.getId())
+                    val item = MessageUiItem.MessageItem(msg, createAvatarUiState(sender))
+                    events.add(msg.date to item)
+                }
             } else {
-                messageGroups.add(listOf(currentMessage))
-                i++
+                val sortedMessages = messages.sortedBy { it.id }
+                val firstMsg = sortedMessages.first()
+
+                val sender = sendersMap?.get(firstMsg.senderId.getId())
+                val avatarState = createAvatarUiState(sender)
+
+                val item = MessageUiItem.AlbumItem(
+                    sortedMessages.map { MessageUiItem.MessageItem(it, avatarState) }
+                )
+                events.add(firstMsg.date to item)
             }
         }
-
+        events.sortByDescending { it.first }
         val finalUiPool = mutableListOf<MessageUiItem>()
         var lastDate: Int? = null
-        messageGroups.forEach { group ->
-            val firstMessage = group.first()
-            val currentDate = firstMessage.date
-            val senderId = firstMessage.senderId.getId()
 
-            val senderChat = if (senderId != null) sendersMap?.get(senderId) else null
-
-            val senderAvatarState = createAvatarUiState(senderChat)
-
-            if (lastDate != null && !isSameDay(currentDate, lastDate)) {
+        events.forEach { (date, uiItem) ->
+            if (lastDate != null && !isSameDay(date, lastDate)) {
                 finalUiPool.add(MessageUiItem.DateSeparator(lastDate))
             }
-            if (group.size > 1) {
-                finalUiPool.add(MessageUiItem.AlbumItem(group.map { MessageUiItem.MessageItem(it, senderAvatarState) }))
-            } else {
-                finalUiPool.add(MessageUiItem.MessageItem(firstMessage, senderAvatarState))
-            }
-
-            lastDate = currentDate
+            finalUiPool.add(uiItem)
+            lastDate = date
         }
 
         return finalUiPool
@@ -633,7 +709,8 @@ class MessagesViewModel @AssistedInject constructor(
                 _uiState.update { currentState ->
                     currentState.copy(
                         inputMessage = "",
-                        selectedMediaUris = emptyList()
+                        selectedMediaUris = emptyList(),
+                        attachmentsType = null
                     )
                 }
 
