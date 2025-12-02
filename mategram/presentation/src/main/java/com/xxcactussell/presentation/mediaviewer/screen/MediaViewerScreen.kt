@@ -93,9 +93,10 @@ import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
 import androidx.media3.ui.compose.state.rememberSeekBackButtonState
 import androidx.media3.ui.compose.state.rememberSeekForwardButtonState
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
-import com.xxcactussell.domain.files.model.File
+import com.xxcactussell.domain.messages.model.File
 import com.xxcactussell.domain.messages.model.FormattedText
 import com.xxcactussell.domain.messages.model.MessageContent
+import com.xxcactussell.domain.messages.model.MessageVideo
 import com.xxcactussell.presentation.LocalRootViewModel
 import com.xxcactussell.presentation.LocalSharedTransitionScope
 import com.xxcactussell.presentation.mediaviewer.model.MediaPageUiState
@@ -227,7 +228,7 @@ fun MediaPageItem(
     val remoteFile = fileUpdates.value[file.id] ?: file
 
     val supportStreaming = when(content) {
-        is MessageContent.MessageVideo -> content.video.supportsStreaming
+        is MessageVideo -> content.video.supportsStreaming
         else -> false
     }
 
@@ -236,7 +237,7 @@ fun MediaPageItem(
     LaunchedEffect(remoteFile.id, remoteFile.local.path) {
         if (remoteFile.local.path.isEmpty() &&
             !remoteFile.local.isDownloadingActive &&
-            !remoteFile.local.isDownloadingComplete) {
+            !remoteFile.local.isDownloadingCompleted) {
             rootViewModel.downloadFile(remoteFile.id)
         }
     }

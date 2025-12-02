@@ -1,6 +1,9 @@
 package com.xxcactussell.presentation.messages.model
 
 import com.xxcactussell.domain.messages.model.Message
+import com.xxcactussell.domain.messages.model.MessageReaction
+import com.xxcactussell.domain.messages.model.MessageReactions
+import com.xxcactussell.domain.messages.model.MessageReplyTo
 import com.xxcactussell.domain.messages.model.getId
 import com.xxcactussell.presentation.chats.model.AvatarUiState
 
@@ -55,6 +58,28 @@ fun MessageUiItem.getMessageSenderId() : Long? {
         is MessageUiItem.MessageItem -> this.message.senderId.getId()
         is MessageUiItem.AlbumItem -> this.messages.firstOrNull()?.message?.senderId?.getId()
         is MessageUiItem.DateSeparator -> null
+    }
+}
+
+fun MessageUiItem.getReplyTo() : MessageReplyTo? {
+    return when (this) {
+        is MessageUiItem.MessageItem -> if (this.message.replyTo != null) this.message.replyTo else null
+        is MessageUiItem.AlbumItem -> this.messages.firstOrNull { it.message.replyTo != null }?.message?.replyTo
+        else -> null
+    }
+}
+
+fun MessageUiItem.getReactions() : List<MessageReaction> {
+    return when (this) {
+        is MessageUiItem.AlbumItem -> {
+            val reactions = emptyList<MessageReaction>().toMutableList()
+            this.messages.forEach {
+                reactions.addAll(it.message.interactionInfo?.reactions?.reactions ?: emptyList())
+            }
+            reactions.toList()
+        }
+        is MessageUiItem.DateSeparator -> emptyList()
+        is MessageUiItem.MessageItem -> this.message.interactionInfo?.reactions?.reactions ?: emptyList()
     }
 }
 

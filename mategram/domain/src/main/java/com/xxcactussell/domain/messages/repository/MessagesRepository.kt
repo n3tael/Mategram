@@ -8,7 +8,10 @@ import com.xxcactussell.domain.messages.model.InputFile
 import com.xxcactussell.domain.messages.model.InputMessageContent
 import com.xxcactussell.domain.messages.model.InputThumbnail
 import com.xxcactussell.domain.messages.model.Message
+import com.xxcactussell.domain.messages.model.MessageListItem
 import com.xxcactussell.domain.messages.model.MessageSender
+import com.xxcactussell.domain.messages.model.MessageSenderChat
+import com.xxcactussell.domain.messages.model.MessageSenderUser
 import com.xxcactussell.domain.messages.model.MessageSource
 import com.xxcactussell.domain.messages.model.TextEntity
 import com.xxcactussell.domain.messages.model.getId
@@ -22,7 +25,6 @@ import javax.inject.Inject
 
 interface MessagesRepository {
     suspend fun getChatHistory(chatId: Long, fromMessageId: Long, limit: Int) : List<Message>
-    fun observeNewMessages() : Flow<Message>
     fun observeSucceededMessages() : Flow<Pair<Long, Message>>
     fun observeLastReadOutboxMessage() : Flow<Pair<Long, Long>>
     suspend fun openChat(chatId: Long) : Chat?
@@ -35,6 +37,32 @@ interface MessagesRepository {
 
     fun markMessageAsRead(chatId: Long, messageId: Long, source: MessageSource, forceRead: Boolean = false)
     suspend fun searchMediaMessages(chatId: Long, fromMessageId: Long, offset: Int, limit: Int) : List<Message>
+    suspend fun getReplyMessage(chatId: Long, messageId: Long): Message?
+    fun getChatFlow(chatId: Long): Flow<List<MessageListItem>>
+    fun loadMoreHistory(chatId: Long)
+    fun clearChatSession(chatId: Long)
+}
+
+class LoadMoreHistoryUseCase @Inject constructor(
+    private val messageRepository: MessagesRepository
+) {
+    operator fun invoke(chatId: Long) = messageRepository.loadMoreHistory(chatId)
+}
+
+class GetReplyMessageUseCase @Inject constructor(
+    private val messageRepository: MessagesRepository
+) {
+    suspend operator fun invoke(chatId: Long, messageId: Long): Message? {
+        return messageRepository.getReplyMessage(chatId, messageId)
+    }
+}
+
+class GetChatFlowUseCase @Inject constructor(
+    private val messageRepository: MessagesRepository
+) {
+    operator fun invoke(chatId: Long): Flow<List<MessageListItem>> {
+        return messageRepository.getChatFlow(chatId)
+    }
 }
 
 class GetChatMediaHistoryUseCase @Inject constructor(
@@ -58,9 +86,8 @@ class GetSendersInfoUseCase @Inject constructor(
             val deferredSenders = senderIds.associateWith { senderId ->
                 async {
                     when (senderId) {
-                        is MessageSender.Chat -> chatsRepo.getChat(senderId.id)
-                        is MessageSender.User -> chatsRepo.getUser(senderId.id)
-                        MessageSender.Unknown -> null
+                        is MessageSenderChat -> chatsRepo.getChat(senderId.chatId)
+                        is MessageSenderUser -> chatsRepo.getUser(senderId.userId)
                     }
                 }
             }
@@ -78,10 +105,6 @@ class GetSendersInfoUseCase @Inject constructor(
         }
     }
 }
-class ObserveNewMessagesUseCase @Inject constructor(private val repository: MessagesRepository) {
-    operator fun invoke() : Flow<Message> = repository.observeNewMessages()
-}
-
 class ObserveSucceededMessagesUseCase @Inject constructor(private val repository: MessagesRepository) {
     operator fun invoke() : Flow<Pair<Long, Message>> = repository.observeSucceededMessages()
 }

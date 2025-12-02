@@ -1,6 +1,6 @@
 package com.xxcactussell.domain.chats.model
 
-import com.xxcactussell.domain.files.model.File
+import com.xxcactussell.domain.messages.model.File
 import com.xxcactussell.domain.messages.model.FormattedText
 import com.xxcactussell.domain.messages.model.Message
 import com.xxcactussell.domain.messages.model.MessageSender

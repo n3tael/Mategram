@@ -1,5 +1,6 @@
 package com.xxcactussell.presentation.localization
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
 import com.xxcactussell.domain.localization.model.LanguagePack
@@ -11,6 +12,7 @@ import com.xxcactussell.domain.localization.repository.GetLanguageStringsUseCase
 import com.xxcactussell.domain.localization.repository.SaveLanguageIdUseCase
 import com.xxcactussell.domain.localization.repository.SynchronizeLanguageStringsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import jakarta.inject.Inject
 import jakarta.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -27,6 +29,7 @@ import org.intellij.lang.annotations.Language
 
 @Singleton
 class LocalizationManager @Inject constructor(
+    @param:ApplicationContext private val context: Context,
     private val getLanguageStringsUseCase: GetLanguageStringsUseCase,
     private val getAvailableLanguagePacksUseCase: GetAvailableLanguagePacksUseCase,
     private val synchronizeLanguageStringsUseCase: SynchronizeLanguageStringsUseCase,
@@ -35,6 +38,20 @@ class LocalizationManager @Inject constructor(
 ) {
     private val _translationMap = MutableStateFlow<Map<String, TranslationValue>>(emptyMap())
     val translationMap: StateFlow<Map<String, TranslationValue>> = _translationMap.asStateFlow()
+
+    init {
+        instance = this
+    }
+
+    companion object {
+        lateinit var instance: LocalizationManager
+            private set
+
+        fun getStringGlobal(key: String, quantity: Long = 1, vararg args: Any): String {
+            if (!::instance.isInitialized) return key
+            return instance.getString(key, quantity, *args)
+        }
+    }
 
     fun initialize(context: Context, scope: CoroutineScope) {
         Log.d("LANGINIT", "INIT")
@@ -51,18 +68,42 @@ class LocalizationManager @Inject constructor(
         saveLanguageIdUseCase(languageId, context)
     }
 
-    fun getString(context: Context, key: String, quantity: Long = 1, vararg args: Any): String {
+    @SuppressLint("DiscouragedApi")
+    fun getString(key: String, quantity: Long = 1, vararg args: Any): String {
         val strings = _translationMap.value
         val translationValue = strings[key]
 
-        return when (translationValue) {
-            is TranslationValue.Ordinary -> String.format(translationValue.value, *args)
+        val translated = when (translationValue) {
+            is TranslationValue.Ordinary -> try {
+                String.format(translationValue.value, *args)
+            } catch (e: Exception) {
+                translationValue.value
+            }
             is TranslationValue.Pluralized -> {
                 val pluralForm = PluralRulesResolver.getPluralForm(context, quantity, translationValue)
-                String.format(pluralForm, *args)
+                try {
+                    String.format(pluralForm, *args)
+                } catch (e: Exception) {
+                    pluralForm
+                }
             }
-            TranslationValue.Deleted, null -> key
+            TranslationValue.Deleted, null -> null
         }
+
+        if (translated == null) {
+            return try {
+                val resId = context.resources.getIdentifier(key, "string", context.packageName)
+                if (resId != 0) {
+                    context.getString(resId, *args)
+                } else {
+                    key
+                }
+            } catch (e: Exception) {
+                key
+            }
+        }
+
+        return translated
     }
 
     suspend fun fetchLanguagePacks() : List<LanguagePack> {

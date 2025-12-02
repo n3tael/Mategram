@@ -2,20 +2,25 @@ package com.xxcactussell.presentation.messages.screen
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -28,10 +33,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.xxcactussell.domain.messages.model.Message
 import com.xxcactussell.domain.messages.model.MessageStatus
 import com.xxcactussell.presentation.chats.screen.ChatAvatar
 import com.xxcactussell.presentation.messages.model.MessageUiItem
 import com.xxcactussell.presentation.messages.model.getAvatar
+import com.xxcactussell.presentation.messages.model.getReactions
+import com.xxcactussell.presentation.messages.model.isOutgoing
 import kotlin.concurrent.atomics.AtomicLongArray
 import kotlin.math.abs
 
@@ -47,6 +55,7 @@ fun BubbleMessage(
     needSenderName: Boolean,
     needAvatar: Boolean,
     isGroup: Boolean,
+    onReplyClicked: (Long) -> Unit,
     content: @Composable (() -> Unit)
 ) {
     val alignment = if (isOutgoing) Alignment.Companion.CenterEnd else Alignment.Companion.CenterStart
@@ -87,6 +96,14 @@ fun BubbleMessage(
         else -> null
     }
 
+    val replyingMessage : Message? = when (message) {
+        is MessageUiItem.MessageItem -> if (message.message.replyTo != null) message.message else null
+        is MessageUiItem.AlbumItem -> {
+            message.messages.firstOrNull { it.message.replyTo != null }?.message
+        }
+        else -> null
+    }
+
     val statusBackgroundColor = when(sendingState) {
         is MessageStatus.Failed -> {
             MaterialTheme.colorScheme.error
@@ -122,13 +139,13 @@ fun BubbleMessage(
         modifier = Modifier.Companion
             .fillMaxWidth()
             .padding(
-                top = if (topCorner == 18.dp) 8.dp else 0.dp,
                 start = startPadding,
                 end = if (isOutgoing) 0.dp else 64.dp
             )
     ) {
         Column(
-            modifier = Modifier.Companion.align(alignment)
+            modifier = Modifier.Companion.align(alignment),
+            horizontalAlignment = if (isOutgoing) Alignment.End else Alignment.Start
         ) {
             if (needSenderName) {
                 Text(
@@ -141,6 +158,11 @@ fun BubbleMessage(
                         MaterialTheme.colorScheme.tertiary
                     )[abs(message.getAvatar()?.chatId?.rem(3) ?: 0).toInt()]
                 )
+            }
+
+            if (replyingMessage != null) {
+                ReplyMarkup(message = replyingMessage, isOutgoing, onReplyClicked)
+                Spacer(modifier = Modifier.height(4.dp))
             }
 
             Box {
@@ -182,11 +204,20 @@ fun BubbleMessage(
                     )
                 }
             }
-            /* TODO REACTIONS
-            Row {
 
+            val reactions = message.getReactions()
+            if (reactions.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                FlowRow(
+                    maxItemsInEachRow = 4,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    reactions.forEach {
+                        ReactionChip(it) { }
+                    }
+                }
             }
-            */
         }
     }
 }

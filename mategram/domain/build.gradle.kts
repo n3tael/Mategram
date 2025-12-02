@@ -18,5 +18,5 @@ kotlin {
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation("com.google.dagger:hilt-core:2.51")
+    implementation(libs.hilt.core)
 }

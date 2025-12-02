@@ -1,9 +1,11 @@
 package com.xxcactussell.presentation.messages.model
 
+import android.content.Context
 import android.net.Uri
 import com.xxcactussell.domain.chats.model.Chat
 import com.xxcactussell.domain.messages.model.InputMessageContent
 import com.xxcactussell.presentation.chats.model.AttachmentEntry
+import java.io.File
 
 data class MessagesUiState(
     val chat: Chat? = null,
@@ -36,6 +38,9 @@ sealed interface MessagesEvent {
     data class MessageSwiped(val messageId: Long) : MessagesEvent
     data class MessageRead(val messageId: Long?) : MessagesEvent
     data class UpdateFirstVisibleItemIndex(val index: Int) : MessagesEvent
+    data class DownloadFile(val fileId: Int, val fileName: String) : MessagesEvent
+    data class CancelDownloadFile(val fileId: Int, val fileName: String) : MessagesEvent
+    data class OpenFile(val context: Context, val fileName: String) : MessagesEvent
 }
 
 sealed interface InputEvent {

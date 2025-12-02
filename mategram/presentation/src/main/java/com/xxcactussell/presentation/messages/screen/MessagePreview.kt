@@ -2,12 +2,9 @@ package com.xxcactussell.presentation.messages.screen
 
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
@@ -26,34 +23,40 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.ModifierLocalBeyondBoundsLayout
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.xxcactussell.domain.messages.model.FormattedText
 import com.xxcactussell.domain.messages.model.Message
-import com.xxcactussell.domain.messages.model.MessageContent
-import com.xxcactussell.domain.messages.model.MiniThumbnail
+import com.xxcactussell.domain.messages.model.MessageAnimatedEmoji
+import com.xxcactussell.domain.messages.model.MessageAnimation
+import com.xxcactussell.domain.messages.model.MessageAudio
+import com.xxcactussell.domain.messages.model.MessageDocument
+import com.xxcactussell.domain.messages.model.MessagePhoto
+import com.xxcactussell.domain.messages.model.MessageSticker
+import com.xxcactussell.domain.messages.model.MessageText
+import com.xxcactussell.domain.messages.model.MessageVideo
+import com.xxcactussell.domain.messages.model.Minithumbnail
 import com.xxcactussell.domain.messages.model.TextEntity
-import com.xxcactussell.domain.messages.model.TextEntityType
+import com.xxcactussell.domain.messages.model.TextEntityTypeCustomEmoji
 import com.xxcactussell.presentation.localization.localizedString
 import com.xxcactussell.presentation.tools.FormattedTextView
 
 data class MessagePreviewState(
     val text: FormattedText,
     val icon: ImageVector? = null,
-    val thumbnail: MiniThumbnail? = null
+    val thumbnail: Minithumbnail? = null
 )
 
 @Composable
 fun MessagePreview(message: Message) {
     val content = message.content
     val state = when(content) {
-        is MessageContent.Text -> {
+        is MessageText -> {
             MessagePreviewState(
                 text = content.text
             )
         }
-        is MessageContent.MessagePhoto -> {
+        is MessagePhoto -> {
             val text = if (content.caption.text.isEmpty()) {
                 if (message.mediaAlbumId != 0L) {
                     FormattedText(localizedString("Album"))
@@ -66,10 +69,10 @@ fun MessagePreview(message: Message) {
             MessagePreviewState(
                 text = text,
                 icon = Icons.Rounded.Photo,
-                thumbnail = content.photo.miniThumbnail
+                thumbnail = content.photo.minithumbnail
             )
         }
-        is MessageContent.MessageVideo -> {
+        is MessageVideo -> {
             val text = if (content.caption.text.isEmpty()) {
                 if (message.mediaAlbumId != 0L) {
                     FormattedText(localizedString("Album"))
@@ -82,18 +85,18 @@ fun MessagePreview(message: Message) {
             MessagePreviewState(
                 text = text,
                 icon = Icons.Rounded.VideoCameraBack,
-                thumbnail = content.cover?.miniThumbnail
+                thumbnail = content.cover?.minithumbnail
             )
         }
-        is MessageContent.MessageAudio -> {
+        is MessageAudio -> {
             MessagePreviewState(
                 text = FormattedText("${content.audio.performer} - ${content.audio.title}"),
                 icon = Icons.Rounded.MusicNote
             )
         }
-        is MessageContent.MessageAnimatedEmoji -> {
+        is MessageAnimatedEmoji -> {
             val entities = if (content.animatedEmoji.sticker != null) {
-                listOf(TextEntity(0,1, TextEntityType.CustomEmoji(
+                listOf(TextEntity(0,1, TextEntityTypeCustomEmoji(
                     content.animatedEmoji.sticker!!.id
                 )))
             } else emptyList()
@@ -101,17 +104,12 @@ fun MessagePreview(message: Message) {
                 text = FormattedText(content.emoji, entities)
             )
         }
-        is MessageContent.MessageSticker -> {
+        is MessageSticker -> {
             MessagePreviewState(
                 text = FormattedText("${content.sticker.emoji} ${localizedString("AttachSticker")}")
             )
         }
-        is MessageContent.MessageDice -> {
-            MessagePreviewState(
-                text = FormattedText(content.emoji)
-            )
-        }
-        is MessageContent.MessageDocument -> {
+        is MessageDocument -> {
             MessagePreviewState(
                 text = if (content.caption.text.isNotEmpty()) {
                     content.caption
@@ -121,10 +119,9 @@ fun MessagePreview(message: Message) {
                 icon = Icons.AutoMirrored.Rounded.InsertDriveFile
             )
         }
-        //TODO
-        is MessageContent.MessageAnimation -> {
+        is MessageAnimation -> {
             MessagePreviewState(
-                text = FormattedText(content.fileId)
+                text = content.caption
             )
         }
         else -> {
@@ -172,18 +169,35 @@ fun MessagePreview(message: Message) {
 
 @Composable
 fun ByteArrayImage(
+    modifier: Modifier = Modifier,
     imageData: ByteArray,
-    contentDescription: String?,
-    modifier: Modifier = Modifier
+    contentDescription: String? = null
 ) {
-    val bitmap = remember(imageData) {
-        BitmapFactory.decodeByteArray(imageData, 0, imageData.size)
+    val thumbnailBitmap = remember(imageData) {
+        if (imageData.isNotEmpty()) {
+            try {
+                BitmapFactory.decodeByteArray(imageData, 0, imageData.size)?.asImageBitmap()
+            } catch (e: Exception) {
+                null
+            }
+        } else {
+            null
+        }
     }
 
-    Image(
-        bitmap = bitmap?.asImageBitmap() ?: ImageBitmap(1, 1),
-        contentDescription = contentDescription,
-        modifier = modifier,
-        contentScale = ContentScale.Crop
-    )
+    if (thumbnailBitmap == null) {
+        Icon(
+            Icons.Rounded.Photo,
+            "",
+            modifier = modifier
+        )
+    } else {
+        Image(
+            bitmap = thumbnailBitmap,
+            contentDescription = contentDescription ?: "",
+            modifier = modifier
+                .clip(RoundedCornerShape(4.dp)),
+            contentScale = ContentScale.Crop
+        )
+    }
 }

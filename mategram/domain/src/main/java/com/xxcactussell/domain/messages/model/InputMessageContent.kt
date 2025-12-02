@@ -26,7 +26,7 @@ data class InputThumbnail(
 interface InputMessageContent {
     data class Text(
         val text: FormattedText,
-        val linkPreviewOptions: LinkOption? = null,
+        val linkPreviewOptions: LinkPreviewOptions? = null,
         val clearDraft: Boolean = true
     ) : InputMessageContent
 

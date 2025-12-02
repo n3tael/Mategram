@@ -188,7 +188,9 @@ fun ChatListContent(
                                     tab.unreadCount.let {
                                         if (it > 0) {
                                             Spacer(Modifier.size(ToggleButtonDefaults.IconSpacing))
-                                            Badge {
+                                            Badge (
+                                                containerColor = if (tab.isSelected) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.error
+                                            ) {
                                                 Text("${tab.unreadCount}")
                                             }
                                         }

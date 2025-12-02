@@ -15,6 +15,7 @@ import jakarta.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,14 +32,16 @@ class ChatsRepositoryImpl @Inject constructor(
 
     private val chatsCache = ConcurrentHashMap<Long, Chat>()
 
-    private val _sortedChatsFlow = MutableStateFlow<Map<Int, List<Chat>>>(emptyMap())
+    private val chatLocationCache = ConcurrentHashMap<Long, MutableSet<Int>>()
 
+    private val pendingChatUpdates = ConcurrentHashMap.newKeySet<Long>()
+
+    private val _sortedChatsFlow = MutableStateFlow<Map<Int, List<Chat>>>(emptyMap())
     private val _chatFolders = MutableStateFlow<List<ChatFolder>>(emptyList())
     private val _mainChatListPosition = MutableStateFlow(0)
     private val _userStatuses = MutableStateFlow<Map<Long, ChatStatus>>(emptyMap())
 
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-
     private val _me = MutableStateFlow<User?>(null)
 
     init {
@@ -47,6 +50,7 @@ class ChatsRepositoryImpl @Inject constructor(
                 _me.value = result.toDomain()
             }
         }
+
         clientManager.chatsUpdatesFlow
             .onEach { update ->
                 val chatId = when (update) {
@@ -62,53 +66,84 @@ class ChatsRepositoryImpl @Inject constructor(
                     else -> null
                 }
                 handleChatUpdate(update)
-                chatId?.let { updateSortedChatsFor(it) }
+                chatId?.let { pendingChatUpdates.add(it) }
             }
             .launchIn(repositoryScope)
+
         clientManager.chatFoldersUpdatesFlow
             .onEach { update ->
                 handleChatUpdate(update)
             }
             .launchIn(repositoryScope)
+
+        startBatchProcessing()
+    }
+
+    private fun startBatchProcessing() {
+        repositoryScope.launch(Dispatchers.Default) {
+            while (true) {
+                delay(250)
+
+                if (pendingChatUpdates.isNotEmpty()) {
+                    val idsToUpdate = pendingChatUpdates.toList()
+                    pendingChatUpdates.clear()
+
+                    if (idsToUpdate.isNotEmpty()) {
+                        updateSortedChatsBatch(idsToUpdate)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun updateSortedChatsBatch(chatIds: List<Long>) {
+        _sortedChatsFlow.update { currentMap ->
+            val newMap = currentMap.toMutableMap()
+
+            chatIds.forEach { chatId ->
+                val updatedChat = chatsCache[chatId] ?: return@forEach
+
+                val oldFolderIds = chatLocationCache[chatId] ?: emptySet()
+                oldFolderIds.forEach { folderId ->
+                    newMap[folderId]?.let { list ->
+                        val mutableList = list as? MutableList ?: list.toMutableList()
+                        mutableList.removeIf { it.id == chatId }
+                        newMap[folderId] = mutableList
+                    }
+                }
+
+                val newLocations = mutableSetOf<Int>()
+
+                updatedChat.positions
+                    .filter { it.order != 0L }
+                    .forEach { position ->
+                        val folderId = getFolderIdFromChatList(position.list)
+                        val currentList = newMap.getOrDefault(folderId, emptyList())
+                        val mutableList = currentList as? MutableList ?: currentList.toMutableList()
+
+                        val comparator = getChatComparator(folderId)
+                        val insertionPoint = mutableList.binarySearch(updatedChat, comparator)
+                        val index = if (insertionPoint < 0) -(insertionPoint + 1) else insertionPoint
+
+                        if (index in 0..mutableList.size) {
+                            mutableList.add(index, updatedChat)
+                        } else {
+                            mutableList.add(updatedChat)
+                        }
+
+                        newMap[folderId] = mutableList
+                        newLocations.add(folderId)
+                    }
+                chatLocationCache[chatId] = newLocations
+            }
+            newMap
+        }
     }
 
     private fun getChatComparator(folderId: Int): Comparator<Chat> {
         return compareByDescending<Chat> { it.findPositionForFolder(folderId)?.isPinned ?: false }
             .thenByDescending { it.findPositionForFolder(folderId)?.order ?: 0L }
             .thenByDescending { it.id }
-    }
-
-    private fun updateSortedChatsFor(chatId: Long) {
-        repositoryScope.launch(Dispatchers.Default) {
-            val updatedChat = chatsCache[chatId] ?: return@launch
-
-            _sortedChatsFlow.update { currentMap ->
-                val newMap = currentMap.toMutableMap()
-                val oldChat = currentMap.values.asSequence().flatten().find { it.id == chatId }
-                oldChat?.positions?.forEach { position ->
-                    val folderId = getFolderIdFromChatList(position.list)
-                    val currentList = newMap[folderId]?.toMutableList()
-                    currentList?.removeIf { it.id == chatId }
-                    if (currentList != null) {
-                        newMap[folderId] = currentList
-                    }
-                }
-                updatedChat.positions
-                    .filter { it.order != 0L }
-                    .forEach { position ->
-                        val folderId = getFolderIdFromChatList(position.list)
-                        val currentList = newMap.getOrDefault(folderId, emptyList())
-                        val comparator = getChatComparator(folderId)
-                        val insertionPoint = currentList.binarySearch(updatedChat, comparator)
-                        val index = if (insertionPoint < 0) -(insertionPoint + 1) else insertionPoint
-
-                        val newList = currentList.toMutableList()
-                        newList.add(index, updatedChat)
-                        newMap[folderId] = newList
-                    }
-                newMap
-            }
-        }
     }
 
     private fun Chat.findPositionForFolder(folderId: Int): ChatPosition? {
@@ -175,7 +210,7 @@ class ChatsRepositoryImpl @Inject constructor(
                     clientManager.send(TdApi.GetChat(update.chatId)) { result ->
                         if (result is TdApi.Chat) {
                             chatsCache[result.id] = result.toDomain()
-                            updateSortedChatsFor(result.id)
+                            pendingChatUpdates.add(result.id)
                         }
                     }
                 }
@@ -189,7 +224,7 @@ class ChatsRepositoryImpl @Inject constructor(
                     clientManager.send(TdApi.GetChat(update.chatId)) { result ->
                         if (result is TdApi.Chat) {
                             chatsCache[result.id] = result.toDomain()
-                            updateSortedChatsFor(result.id)
+                            pendingChatUpdates.add(result.id)
                         }
                     }
                 }
@@ -203,7 +238,7 @@ class ChatsRepositoryImpl @Inject constructor(
                     clientManager.send(TdApi.GetChat(update.chatId)) { result ->
                         if (result is TdApi.Chat) {
                             chatsCache[result.id] = result.toDomain()
-                            updateSortedChatsFor(result.id)
+                            pendingChatUpdates.add(result.id)
                         }
                     }
                 }
@@ -217,7 +252,7 @@ class ChatsRepositoryImpl @Inject constructor(
                     clientManager.send(TdApi.GetChat(update.chatId)) { result ->
                         if (result is TdApi.Chat) {
                             chatsCache[result.id] = result.toDomain()
-                            updateSortedChatsFor(result.id)
+                            pendingChatUpdates.add(result.id)
                         }
                     }
                 }
@@ -231,7 +266,7 @@ class ChatsRepositoryImpl @Inject constructor(
                     clientManager.send(TdApi.GetChat(update.chatId)) { result ->
                         if (result is TdApi.Chat) {
                             chatsCache[result.id] = result.toDomain()
-                            updateSortedChatsFor(result.id)
+                            pendingChatUpdates.add(result.id)
                         }
                     }
                 }

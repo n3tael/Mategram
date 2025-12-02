@@ -63,7 +63,7 @@ fun PhotoMessage(
     val file = fileUpdates.value[photoSize.id] ?: photoSize
 
 
-    if (file.local.isDownloadingComplete && file.local.path.isNotEmpty()) {
+    if (file.local.isDownloadingCompleted && file.local.path.isNotEmpty()) {
         var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
 
         LaunchedEffect(file.local.path) {
@@ -146,7 +146,7 @@ fun PhotoMessage(
                 LoadingIndicator()
             }
         }
-        if (!file.local.isDownloadingActive && !file.local.isDownloadingComplete) {
+        if (!file.local.isDownloadingActive && !file.local.isDownloadingCompleted) {
             LaunchedEffect(file.id) {
                 rootViewModel.downloadFile(file.id)
             }
@@ -159,7 +159,7 @@ fun PhotoMessage(
 fun VideoMessage(
     modifier: Modifier = Modifier,
     messageId: Long,
-    video: Video.Main,
+    video: Video,
     videoCover: Photo?,
     isSending: Boolean,
     uploadProgress: () -> Float,
@@ -178,7 +178,7 @@ fun VideoMessage(
     val file = fileUpdates.value[cover.id] ?: cover
 
 
-    if (file.local.isDownloadingComplete && file.local.path.isNotEmpty()) {
+    if (file.local.isDownloadingCompleted && file.local.path.isNotEmpty()) {
         var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
 
         LaunchedEffect(file.local.path) {
@@ -269,7 +269,7 @@ fun VideoMessage(
                 LoadingIndicator()
             }
         }
-        if (!file.local.isDownloadingActive && !file.local.isDownloadingComplete) {
+        if (!file.local.isDownloadingActive && !file.local.isDownloadingCompleted) {
             LaunchedEffect(file.id) {
                 rootViewModel.downloadFile(file.id)
             }

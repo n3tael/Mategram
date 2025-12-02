@@ -1,5 +1,7 @@
 package com.xxcactussell.presentation.chats.screen
 
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,11 +17,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -30,7 +36,9 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.xxcactussell.presentation.LocalRootViewModel
 import com.xxcactussell.presentation.chats.model.AvatarUiState
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.withContext
 import kotlin.math.abs
 
 
@@ -41,16 +49,9 @@ fun ChatAvatar(
     isPinned: Boolean,
     isOnline: Boolean
 ) {
-    val context = LocalContext.current
     val rootViewModel = LocalRootViewModel.current
-    val fileId = state?.photo?.small?.id
+    val fileUpdates = rootViewModel.files.collectAsState()
 
-    val fileFlow = remember(fileId) {
-        if (fileId != null) rootViewModel.observeFileStatus(fileId) else flowOf(null)
-    }
-    val currentFile by fileFlow.collectAsState(initial = null)
-    val localPath = currentFile?.local?.path
-    val isDownloadingComplete = currentFile?.local?.isDownloadingComplete == true
     val avatarColor = listOf(
         MaterialTheme.colorScheme.primary,
         MaterialTheme.colorScheme.secondary,
@@ -58,8 +59,10 @@ fun ChatAvatar(
     )[abs(state?.chatId?.rem(3) ?: 0).toInt()]
 
     val initials = state?.title?.split(" ")
-        ?.filter { it.isNotBlank() }?.take(2)?.joinToString("") { it.first().uppercase() }?.ifEmpty { "?" } ?: ""
+        ?.filter { it.isNotBlank() }?.take(2)?.joinToString("") { it.first().uppercase() }
+        ?.ifEmpty { "?" } ?: ""
 
+    val avatar = state?.photo?.small
     Box {
         Box(
             modifier = modifier
@@ -67,21 +70,50 @@ fun ChatAvatar(
                 .background(avatarColor),
             contentAlignment = Alignment.Center
         ) {
+            if (avatar != null) {
+                val file = fileUpdates.value[avatar.id] ?: avatar
 
-            val shouldLoad = isDownloadingComplete && !localPath.isNullOrEmpty()
+                if (file.local.isDownloadingCompleted && file.local.path.isNotEmpty()) {
+                    var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
 
-            if (shouldLoad) {
-                AsyncImage(
-                    model = ImageRequest.Builder(context).data(localPath).build(),
-                    contentDescription = "${state?.title} avatar",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                    error = rememberVectorPainter(Icons.Rounded.BrokenImage)
-                )
-            } else {
-                Text(text = initials, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                LaunchedEffect(key1 = state?.photo?.small?.id) {
-                    rootViewModel.downloadFile(state?.photo?.small?.id)
+                    LaunchedEffect(file.local.path) {
+                        withContext(Dispatchers.IO) {
+                            try {
+                                val decodedBitmap = BitmapFactory.decodeFile(file.local.path)
+                                bitmap = decodedBitmap?.asImageBitmap()
+                            } catch (e: Exception) {
+                                // Handle exceptions
+                            }
+                        }
+                    }
+
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap!!,
+                            contentDescription = "${state.title} avatar",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                        )
+                    } else {
+                        Text(
+                            text = initials,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                    }
+                } else {
+                    Text(
+                        text = initials,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    if (!file.local.isDownloadingActive && !file.local.isDownloadingCompleted) {
+                        LaunchedEffect(file.id) {
+                            rootViewModel.downloadFile(file.id)
+                        }
+                    }
                 }
             }
         }

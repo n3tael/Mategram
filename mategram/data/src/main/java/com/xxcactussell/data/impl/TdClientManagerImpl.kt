@@ -103,6 +103,7 @@ class TdClientManagerImpl @Inject constructor() : TdClientManager {
                     is TdApi.UpdateFile ->
                         _filesUpdatesFlow.tryEmit(update)
                     is TdApi.UpdateMessageSendFailed,
+                    is TdApi.UpdateMessageInteractionInfo,
                     is TdApi.UpdateMessageSendSucceeded,
                     is TdApi.UpdateNewMessage ->
                         _newMessagesFlow.tryEmit(update)

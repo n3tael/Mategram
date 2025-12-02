@@ -2,9 +2,10 @@ package com.xxcactussell.presentation.mediaviewer.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.xxcactussell.domain.files.model.File
+import com.xxcactussell.domain.messages.model.File
 import com.xxcactussell.domain.messages.model.Message
-import com.xxcactussell.domain.messages.model.MessageContent
+import com.xxcactussell.domain.messages.model.MessagePhoto
+import com.xxcactussell.domain.messages.model.MessageVideo
 import com.xxcactussell.domain.messages.repository.GetChatMediaHistoryUseCase
 import com.xxcactussell.presentation.mediaviewer.model.GalleryItem
 import com.xxcactussell.presentation.mediaviewer.model.MediaPageUiState
@@ -62,7 +63,7 @@ class MediaViewerViewModel @AssistedInject constructor(
 
     private fun mapMessageToGalleryItem(message: Message): GalleryItem? {
         return when (val content = message.content) {
-            is MessageContent.MessagePhoto -> GalleryItem(
+            is MessagePhoto -> GalleryItem(
                 content = content,
                 messageId = message.id,
                 file = content.photo.sizes.maxBy { it.width }.photo,
@@ -70,7 +71,7 @@ class MediaViewerViewModel @AssistedInject constructor(
                 isVideo = false,
                 caption = content.caption,
             )
-            is MessageContent.MessageVideo -> GalleryItem(
+            is MessageVideo -> GalleryItem(
                 content = content,
                 messageId = message.id,
                 file = content.video.video,
@@ -94,7 +95,7 @@ class MediaViewerViewModel @AssistedInject constructor(
                 isVideo = true
             )
         } else {
-            if (file.local.isDownloadingComplete && path.isNotEmpty()) {
+            if (file.local.isDownloadingCompleted && path.isNotEmpty()) {
                 MediaPageUiState.Content(path, isVideo)
             } else {
                 MediaPageUiState.Loading

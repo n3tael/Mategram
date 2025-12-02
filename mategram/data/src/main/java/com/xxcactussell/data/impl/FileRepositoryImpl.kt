@@ -1,10 +1,9 @@
 package com.xxcactussell.data.impl
 
 import com.xxcactussell.data.TdClientManager
-import com.xxcactussell.data.utils.toDomain
 import com.xxcactussell.data.utils.todomain.toDomain
-import com.xxcactussell.domain.files.model.File
 import com.xxcactussell.domain.files.repository.FileRepository
+import com.xxcactussell.domain.messages.model.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -46,5 +45,13 @@ class FileRepositoryImpl @Inject constructor(
                 }
             }
         }
+    }
+
+    override fun cancelDownload(fileId: Int, onlyIfPending: Boolean) {
+        clientManager.send(TdApi.CancelDownloadFile(fileId, onlyIfPending))
+    }
+
+    override fun addToDownloads(fileId: Int, chatId: Long, messageId: Long, priority: Int) {
+        clientManager.send(TdApi.AddFileToDownloads(fileId, chatId, messageId, priority))
     }
 }

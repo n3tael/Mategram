@@ -41,23 +41,36 @@ class LanguageRepositoryImpl @Inject constructor(
     }
 
     override fun getLanguageStrings(languageId: String): Flow<List<LocalizedResource>> = callbackFlow {
-        var tdStrings: List<LocalizedResource>
-        clientManager.send(TdApi.GetLanguagePackStrings(languageId, arrayOf())) { result ->
-            when (result.constructor) {
-                TdApi.LanguagePackStrings.CONSTRUCTOR -> {
-                    tdStrings = (result as TdApi.LanguagePackStrings).strings.map { it.toDomain() }
-                    trySend(tdStrings)
-                    close()
-                }
-                TdApi.Error.CONSTRUCTOR -> {
-                    val error = result as TdApi.Error
-                    close(Exception("TDLib error: ${error.message}"))
-                }
-                else -> {
-                    close(Exception("Unexpected result: $result"))
+        fun requestStrings(isRetry: Boolean = false) {
+            clientManager.send(TdApi.GetLanguagePackStrings(languageId, arrayOf())) { result ->
+                when (result.constructor) {
+                    TdApi.LanguagePackStrings.CONSTRUCTOR -> {
+                        val tdStrings = (result as TdApi.LanguagePackStrings).strings.map { it.toDomain() }
+                        trySend(tdStrings)
+                        close()
+                    }
+
+                    TdApi.Error.CONSTRUCTOR -> {
+                        val error = result as TdApi.Error
+                        if (error.message.contains("localization_target") && !isRetry) {
+                            clientManager.send(TdApi.SetOption("localization_target", TdApi.OptionValueString("android"))) { optionResult ->
+                                if (optionResult.constructor == TdApi.Ok.CONSTRUCTOR) {
+                                    requestStrings(isRetry = true)
+                                } else {
+                                    close(Exception("Failed to recover from error. Could not set localization_target."))
+                                }
+                            }
+                        } else {
+                            close(Exception("TDLib error: ${error.message}"))
+                        }
+                    }
+                    else -> {
+                        close(Exception("Unexpected result: $result"))
+                    }
                 }
             }
         }
+        requestStrings()
         awaitClose()
     }
 

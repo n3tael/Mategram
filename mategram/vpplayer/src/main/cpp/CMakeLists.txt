@@ -76,5 +76,6 @@ target_link_libraries(vpplayer PRIVATE
         avdevice
         swscale
         swresample
+        jnigraphics
 )
 target_link_options(vpplayer PRIVATE "-Wl,--end-group")

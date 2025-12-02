@@ -1,5 +1,6 @@
 package com.xxcactussell.data.utils
 
+import com.xxcactussell.data.utils.todomain.toDomain
 import com.xxcactussell.domain.chats.model.ChatFolder
 import com.xxcactussell.domain.chats.model.ChatFolderName
 import org.drinkless.tdlib.TdApi

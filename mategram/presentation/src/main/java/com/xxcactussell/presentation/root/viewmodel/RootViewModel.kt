@@ -1,11 +1,11 @@
 package com.xxcactussell.presentation.root.viewmodel
 
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.xxcactussell.domain.files.model.File
+import com.xxcactussell.domain.files.repository.AddFileToDownloadsUseCase
 import com.xxcactussell.domain.files.repository.DownloadFileUseCase
 import com.xxcactussell.domain.files.repository.ObserveFileStatusesUseCase
+import com.xxcactussell.domain.messages.model.File
 import com.xxcactussell.domain.messages.model.Sticker
 import com.xxcactussell.domain.root.repository.GetCustomEmojiStickerUseCase
 import com.xxcactussell.presentation.localization.LocalizationManager
@@ -27,7 +27,8 @@ class RootViewModel @Inject constructor(
     val localizationManager: LocalizationManager,
     observeFileStatuses: ObserveFileStatusesUseCase,
     private val downloadFileUseCase: DownloadFileUseCase,
-    private val getCustomEmojiStickerUseCase: GetCustomEmojiStickerUseCase
+    private val getCustomEmojiStickerUseCase: GetCustomEmojiStickerUseCase,
+    private val addFileToDownloadsUseCase: AddFileToDownloadsUseCase
 ) : ViewModel() {
     val files: StateFlow<Map<Int, File>> =
         observeFileStatuses()
@@ -61,5 +62,9 @@ class RootViewModel @Inject constructor(
                 downloadFileUseCase(fileId)
             }
         }
+    }
+
+    fun addFileToDownloads(fileId: Int, chatId: Long, messageId: Long, priority: Int = 16) {
+        addFileToDownloadsUseCase(fileId, chatId, messageId, priority)
     }
 }

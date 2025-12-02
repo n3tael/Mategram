@@ -4,9 +4,13 @@ import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import androidx.compose.animation.Animatable
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Ease
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Image
@@ -15,6 +19,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,6 +32,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -74,6 +81,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.google.android.material.chip.ChipGroup
 import com.xxcactussell.domain.chats.model.ChatType
 import com.xxcactussell.presentation.chats.model.AvatarUiState
 import com.xxcactussell.presentation.chats.screen.ChatAvatar
@@ -85,6 +93,8 @@ import com.xxcactussell.presentation.messages.model.MessagesUiState
 import com.xxcactussell.presentation.messages.model.getMessageDate
 import com.xxcactussell.presentation.messages.model.getMessageId
 import com.xxcactussell.presentation.messages.model.getMessageSenderId
+import com.xxcactussell.presentation.messages.model.getReactions
+import com.xxcactussell.presentation.messages.model.getReplyTo
 import com.xxcactussell.presentation.messages.model.isOutgoing
 import com.xxcactussell.presentation.tools.InputMessageField
 import com.xxcactussell.presentation.tools.formatTimestampToDate
@@ -109,6 +119,9 @@ fun MessagesContent(
     val sizeNewMessageButton = ButtonDefaults.MediumContainerHeight
     val lazyListState = rememberLazyListState()
 
+    var highlightedMessageId by remember { mutableStateOf<Long?>(null) }
+    var pendingScrollToMessageId by remember { mutableStateOf<Long?>(null) }
+
     LaunchedEffect(state.messages.firstOrNull()) {
         if (state.messages.firstOrNull() != null) {
             if (lazyListState.firstVisibleItemIndex > 1) {
@@ -116,6 +129,30 @@ fun MessagesContent(
             } else {
                 scope.launch {
                     lazyListState.animateScrollToItem(0)
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(state.messages, pendingScrollToMessageId) {
+        val targetId = pendingScrollToMessageId
+        if (targetId != null) {
+            val index = state.messages.indexOfFirst { item ->
+                val itemId = item.getMessageId()
+                if (itemId == targetId) return@indexOfFirst true
+                if (item is MessageUiItem.AlbumItem) {
+                    return@indexOfFirst item.messages.any { it.message.id == targetId }
+                }
+                false
+            }
+
+            if (index != -1) {
+                lazyListState.animateScrollToItem(index, -2)
+                highlightedMessageId = targetId
+                pendingScrollToMessageId = null
+            } else {
+                if (state.messages.isNotEmpty()) {
+                    lazyListState.animateScrollToItem(state.messages.lastIndex)
                 }
             }
         }
@@ -236,6 +273,9 @@ fun MessagesContent(
                     val nextPersonId = state.messages.getOrNull(index + 1)?.getMessageSenderId()
                     val prevPersonId = state.messages.getOrNull(index - 1)?.getMessageSenderId()
 
+                    val currentReplyTo = message.getReplyTo()
+                    val prevReplyTo = state.messages.getOrNull(index - 1)?.getReplyTo()
+
                     val topCorner = message.getMessageDate()?.let { currentTimestamp ->
                         val prevTimestamp = state.messages.getOrNull(index + 1)
                             ?.getMessageDate()
@@ -245,7 +285,9 @@ fun MessagesContent(
                         val FIVE_MINUTES_SECONDS = 300
 
                         if (message.getMessageSenderId() == nextPersonId) {
-                            if (timeDifferenceSeconds > FIVE_MINUTES_SECONDS) {
+                            if (timeDifferenceSeconds > FIVE_MINUTES_SECONDS
+                                || currentReplyTo != null
+                                ) {
                                 18.dp
                             } else {
                                 4.dp
@@ -265,7 +307,9 @@ fun MessagesContent(
                         val FIVE_MINUTES_SECONDS = 300
 
                         if (message.getMessageSenderId() == prevPersonId) {
-                            if (timeDifferenceSeconds > FIVE_MINUTES_SECONDS) {
+                            if (timeDifferenceSeconds > FIVE_MINUTES_SECONDS
+                                || (prevReplyTo != null && message.getMessageSenderId() == prevPersonId)
+                            ) {
                                 18.dp
                             } else {
                                 4.dp
@@ -277,6 +321,35 @@ fun MessagesContent(
 
                     val needAvatar = message.getMessageSenderId() != prevPersonId && message.isOutgoing() == false && (state.chat?.type is ChatType.BasicGroup || state.chat?.type is ChatType.Supergroup && !(state.chat.type as ChatType.Supergroup).isChannel)
                     val needSenderName = message.getMessageSenderId() != nextPersonId && message.isOutgoing() == false && (state.chat?.type is ChatType.BasicGroup || state.chat?.type is ChatType.Supergroup && !(state.chat.type as ChatType.Supergroup).isChannel)
+
+                    val isHighlighted = remember(message, highlightedMessageId) {
+                        val msgId = message.getMessageId()
+                        if (msgId == highlightedMessageId && msgId != null) true
+                        else if (message is MessageUiItem.AlbumItem) {
+                            message.messages.any { it.message.id == highlightedMessageId }
+                        } else false
+                    }
+
+                    val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                    val animatedColor = remember { Animatable(Color.Transparent) }
+
+                    LaunchedEffect(isHighlighted) {
+                        if (isHighlighted) {
+                            animatedColor.animateTo(highlightColor, tween(300, easing = Ease))
+                            animatedColor.animateTo(Color.Transparent, tween(300, easing = Ease))
+                            animatedColor.animateTo(highlightColor, tween(300, easing = Ease))
+                            animatedColor.animateTo(Color.Transparent, tween(300, easing = Ease))
+                            animatedColor.animateTo(highlightColor, tween(300, easing = Ease))
+                            animatedColor.animateTo(Color.Transparent, tween(1500, easing = LinearOutSlowInEasing))
+
+                            if (highlightedMessageId == message.getMessageId() ||
+                                (message is MessageUiItem.AlbumItem && message.messages.any { it.message.id == highlightedMessageId })) {
+                                highlightedMessageId = null
+                            }
+                        } else {
+                            animatedColor.snapTo(Color.Transparent)
+                        }
+                    }
 
                     val isUnread = when(message) {
                         is MessageUiItem.AlbumItem -> {
@@ -303,10 +376,10 @@ fun MessagesContent(
                         }
                         else -> false
                     }
-
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .background(animatedColor.value)
                             .onVisibilityChanged {
                                 if (index + 5 > state.messages.size) {
                                     onEvent(MessagesEvent.LoadMoreHistory)
@@ -329,8 +402,43 @@ fun MessagesContent(
                             },
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        MessageItemContent(message = message, topCorner = topCorner, bottomCorner = bottomCorner, needSenderName = needSenderName, needAvatar = needAvatar, isGroup = state.chat?.type is ChatType.BasicGroup || state.chat?.type is ChatType.Supergroup && !(state.chat.type as ChatType.Supergroup).isChannel, isUnread = isUnread, onMediaClicked = onMediaClicked)
+                        MessageItemContent(
+                            message = message,
+                            topCorner = topCorner,
+                            bottomCorner = bottomCorner,
+                            needSenderName = needSenderName,
+                            needAvatar = needAvatar,
+                            isGroup = state.chat?.type is ChatType.BasicGroup || state.chat?.type is ChatType.Supergroup && !(state.chat.type as ChatType.Supergroup).isChannel,
+                            isUnread = isUnread,
+                            onMediaClicked = onMediaClicked,
+                            onReplyClicked = { replyToMessageId ->
+                                val index = state.messages.indexOfFirst { item ->
+                                    val itemId = item.getMessageId()
+                                    if (itemId == replyToMessageId) return@indexOfFirst true
+                                    if (item is MessageUiItem.AlbumItem) {
+                                        return@indexOfFirst item.messages.any { it.message.id == replyToMessageId }
+                                    }
+                                    false
+                                }
+
+                                if (index != -1) {
+                                    scope.launch {
+                                        lazyListState.animateScrollToItem(index)
+                                        highlightedMessageId = replyToMessageId
+                                    }
+                                } else {
+                                    scope.launch {
+                                        pendingScrollToMessageId = replyToMessageId
+                                        if (state.messages.isNotEmpty()) {
+                                            lazyListState.animateScrollToItem(state.messages.lastIndex, -2)
+                                        }
+                                    }
+                                }
+                            },
+                            onEvent = onEvent
+                        )
                     }
+                    if (topCorner == 18.dp) Spacer(modifier = Modifier.height(8.dp))
                 }
                 if (state.isLoadingHistory && state.messages.isNotEmpty()) {
                     item {

@@ -45,11 +45,7 @@ fun TdApi.Chat.toDomain(): Chat {
         lastMessage,
         positions,
         chatList,
-        when(messageSenderId) {
-            is TdApi.MessageSenderChat -> MessageSender.Chat((messageSenderId as TdApi.MessageSenderChat).chatId)
-            is TdApi.MessageSenderUser -> MessageSender.User((messageSenderId as TdApi.MessageSenderUser).userId)
-            else -> MessageSender.User(0L)
-        },
+        messageSenderId?.toDomain(),
         hasProtectedContent,
         unreadCount,
         unreadMentionCount,

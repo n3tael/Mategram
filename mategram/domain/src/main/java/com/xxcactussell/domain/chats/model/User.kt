@@ -1,7 +1,7 @@
 package com.xxcactussell.domain.chats.model
 
-import com.xxcactussell.domain.files.model.File
-import com.xxcactussell.domain.messages.model.MiniThumbnail
+import com.xxcactussell.domain.messages.model.File
+import com.xxcactussell.domain.messages.model.Minithumbnail
 
 data class User(
     val id: Long,
@@ -66,7 +66,7 @@ data class ProfilePhoto(
     val id: Long,
     val small: File,
     val big: File,
-    val miniThumbnail: MiniThumbnail?,
+    val miniThumbnail: Minithumbnail?,
     val hasAnimation: Boolean,
     val isPersonal: Boolean
 )

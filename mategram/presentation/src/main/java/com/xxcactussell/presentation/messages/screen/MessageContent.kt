@@ -21,10 +21,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.xxcactussell.domain.messages.model.MessageContent
+import com.xxcactussell.domain.messages.model.MessageAnimatedEmoji
+import com.xxcactussell.domain.messages.model.MessageAnimation
+import com.xxcactussell.domain.messages.model.MessageDocument
+import com.xxcactussell.domain.messages.model.MessagePhoto
 import com.xxcactussell.domain.messages.model.MessageStatus
+import com.xxcactussell.domain.messages.model.MessageSticker
+import com.xxcactussell.domain.messages.model.MessageText
+import com.xxcactussell.domain.messages.model.MessageVideo
 import com.xxcactussell.domain.messages.model.Sticker
-import com.xxcactussell.domain.messages.model.StickerFormat
+import com.xxcactussell.domain.messages.model.StickerFormatTgs
+import com.xxcactussell.domain.messages.model.StickerFormatWebm
+import com.xxcactussell.domain.messages.model.StickerFormatWebp
 import com.xxcactussell.presentation.LocalRootViewModel
 import com.xxcactussell.presentation.messages.model.MessageUiItem
 import com.xxcactussell.presentation.tools.ColumnWidthOf
@@ -34,17 +42,19 @@ import com.xxcactussell.presentation.tools.StickerWEBMPlayer
 import com.xxcactussell.presentation.tools.WebPImage
 
 @Composable
-fun MessageContent(message: MessageUiItem.MessageItem, onMediaClicked: (Long) -> Unit) {
+fun MessageContent(message: MessageUiItem.MessageItem, onMediaClicked: (Long) -> Unit, onEvent: (Any) -> Unit) {
     val messageTextColor = MaterialTheme.colorScheme.onSurface
     val isSending = message.message.sendingState is MessageStatus.Pending
     val isFailed = message.message.sendingState is MessageStatus.Failed
 
     when (val content = message.message.content) {
-        is MessageContent.Text -> MessageTextContent(content, messageTextColor)
-        is MessageContent.MessagePhoto -> MessagePhotoContent(message, messageTextColor, isSending, isFailed, onMediaClicked)
-        is MessageContent.MessageVideo -> MessageVideoContent(message, messageTextColor, isSending, isFailed, onMediaClicked)
-        is MessageContent.MessageSticker -> MessageStickerContent(content.sticker, 172.dp)
-        is MessageContent.MessageAnimatedEmoji -> MessageStickerContent(content.animatedEmoji.sticker, 92.dp, content.emoji)
+        is MessageText -> MessageTextContent(content, messageTextColor)
+        is MessagePhoto -> MessagePhotoContent(message, messageTextColor, isSending, isFailed, onMediaClicked)
+        is MessageVideo -> MessageVideoContent(message, messageTextColor, isSending, isFailed, onMediaClicked)
+        is MessageSticker -> MessageStickerContent(content.sticker, 172.dp)
+        is MessageAnimatedEmoji -> MessageStickerContent(content.animatedEmoji.sticker, 92.dp)
+        is MessageDocument -> DocumentMessage(message, messageTextColor, isSending, isFailed, onEvent)
+        is MessageAnimation -> AnimationMessageContent(message, messageTextColor, isSending, isFailed, onMediaClicked)
         else -> {
             Text(
                 modifier = Modifier.padding(8.dp),
@@ -57,7 +67,7 @@ fun MessageContent(message: MessageUiItem.MessageItem, onMediaClicked: (Long) ->
 }
 
 @Composable
-fun MessageStickerContent(sticker: Sticker?, size: Dp, emoji: String = "") {
+fun MessageStickerContent(sticker: Sticker?, size: Dp) {
     if (sticker!= null) {
         val localSticker = sticker.sticker
 
@@ -67,30 +77,29 @@ fun MessageStickerContent(sticker: Sticker?, size: Dp, emoji: String = "") {
         val file = fileUpdates.value[sticker.sticker.id] ?: localSticker
         val path = file.local.path
 
-        if (file.local.isDownloadingComplete && path.isNotEmpty()) {
+        if (file.local.isDownloadingCompleted && path.isNotEmpty()) {
             when (sticker.format) {
-                is StickerFormat.Tgs -> {
+                is StickerFormatTgs -> {
                     LottieSticker(path = path, size = size)
                 }
-                is StickerFormat.Webm -> {
+                is StickerFormatWebm -> {
                     val aspectRatio = if (sticker.width != 0 && sticker.height != 0) sticker.width.toFloat() / sticker.height.toFloat() else 1f
                     StickerWEBMPlayer(
-                        videoPath = path,
-                        modifier = Modifier.widthIn(max = size).heightIn(max = size).aspectRatio(aspectRatio)
+                        path = path,
+                        size = size,
+                        aspectRatio = aspectRatio
                     )
                 }
-                is StickerFormat.Webp -> {
+                is StickerFormatWebp -> {
                     WebPImage(path = path, size = size)
-                }
-                else -> {
-                    Box(
-                        modifier = Modifier.size(size).clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.secondaryContainer)
-                    )
                 }
             }
         } else {
             Box(
-                modifier = Modifier.size(size).clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.secondaryContainer)
+                modifier = Modifier
+                    .size(size)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(MaterialTheme.colorScheme.secondaryContainer)
             )
             if (!file.local.isDownloadingActive) {
                 LaunchedEffect(key1 = file.id) {
@@ -109,7 +118,7 @@ fun MessageVideoContent(
     isFailed: Boolean,
     onMediaClicked: (Long) -> Unit
 ) {
-    val content = message.message.content as MessageContent.MessageVideo
+    val content = message.message.content as MessageVideo
 
     ColumnWidthOf(
         modifier =
@@ -167,9 +176,9 @@ fun MessagePhotoContent(
     textColor: Color,
     isSending: Boolean,
     isFailed: Boolean,
-    onMediaClicked: (Long) -> Unit
+    onMediaClicked: (Long) -> Unit,
 ) {
-    val content = message.message.content as MessageContent.MessagePhoto
+    val content = message.message.content as MessagePhoto
 
     ColumnWidthOf(
         modifier =
@@ -221,6 +230,6 @@ fun MessagePhotoContent(
 }
 
 @Composable
-fun MessageTextContent(content: MessageContent.Text, textColor: Color = MaterialTheme.colorScheme.onSurface) {
+fun MessageTextContent(content: MessageText, textColor: Color = MaterialTheme.colorScheme.onSurface) {
     FormattedTextView(text = content.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(16.dp, 8.dp), color = textColor)
 }
