@@ -10,27 +10,26 @@ import javax.inject.Inject
 interface ChatsRepository {
     fun observeChatFolders(): Flow<List<ChatFolder>>
     fun observeMainChatListPosition(): Flow<Int>
-    fun observeSortedChats(): Flow<Map<Int, List<Chat>>>
+
+    fun observeChats(): Flow<List<Chat>>
+
     fun loadChats(folderId: Int = -1, limit: Int)
     fun observeChatStatuses(): Flow<Map<Long, ChatStatus>>
     fun observeMe() : Flow<User?>
 }
 
+class ObserveChatsUpdateUseCase @Inject constructor(private val repository: ChatsRepository) {
+    operator fun invoke(): Flow<List<Chat>> = repository.observeChats()
+}
 class ObserveChatStatusesUseCase @Inject constructor(private val repository: ChatsRepository) {
     operator fun invoke() : Flow<Map<Long, ChatStatus>> = repository.observeChatStatuses()
 }
 class ObserveMeUseCase @Inject constructor(private val repository: ChatsRepository) {
     operator fun invoke(): Flow<User?> = repository.observeMe()
 }
-
-class ObserveChatsUpdateUseCase @Inject constructor(private val repository: ChatsRepository) {
-    operator fun invoke(): Flow<Map<Int, List<Chat>>> = repository.observeSortedChats()
-}
-
 class LoadChatsUseCase @Inject constructor(private val repository: ChatsRepository) {
     operator fun invoke(folderId: Int = -1, limit: Int) = repository.loadChats(folderId, limit)
 }
-
 class ObserveChatFoldersUseCase @Inject constructor(private val repository: ChatsRepository) {
     operator fun invoke() : Flow<List<ChatFolder>> = repository.observeChatFolders()
 }

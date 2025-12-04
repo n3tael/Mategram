@@ -10,6 +10,7 @@ import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.SupervisorJob
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -41,7 +42,7 @@ class MategramApplication : Application(), Configuration.Provider {
             )
         }
 
-        CoroutineScope(Dispatchers.IO).launch {
+        CoroutineScope(Dispatchers.Default + SupervisorJob()).launch {
             tdClientManager.initialize(this@MategramApplication)
         }
     }

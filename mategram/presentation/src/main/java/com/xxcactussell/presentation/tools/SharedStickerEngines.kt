@@ -25,6 +25,22 @@ import kotlinx.coroutines.yield
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.GZIPInputStream
+import javax.inject.Singleton
+
+@Singleton
+object StickerFrameCache {
+    private val cache = ConcurrentHashMap<String, ImageBitmap>()
+
+    fun get(key: String): ImageBitmap? = cache[key]
+
+    fun put(key: String, bitmap: ImageBitmap) {
+        cache[key] = bitmap
+    }
+
+    fun clearAll() {
+        cache.clear()
+    }
+}
 
 private fun decompressGzipIfNeeded(data: ByteArray): ByteArray {
     return if (data.size >= 2 && data[0] == 0x1f.toByte() && data[1] == 0x8b.toByte()) {
@@ -73,6 +89,7 @@ object SharedWebMEngine {
 
     private fun createWebMRenderFlow(path: String): Flow<ImageBitmap?> = flow {
         var nativePtr = 0L
+        var frameCounter = 0
 
         try {
             if (!File(path).exists()) { emit(null); return@flow }
@@ -97,13 +114,19 @@ object SharedWebMEngine {
                 val delayMs = VPPlayer.nativeRenderNextFrame(nativePtr, targetBitmap)
 
                 if (delayMs >= 0) {
-                    val emitted = targetBitmap.copy(Bitmap.Config.ARGB_8888, false)
-                    emit(emitted.asImageBitmap())
+                    val cacheKey = "$path@$frameCounter"
+                    val imageToEmit = StickerFrameCache.get(cacheKey)
+                        ?: targetBitmap.copy(Bitmap.Config.HARDWARE, false).asImageBitmap().also {
+                            StickerFrameCache.put(cacheKey, it)
+                        }
+                    emit(imageToEmit)
 
+                    frameCounter++
                     useBufferA = !useBufferA
                     if (delayMs > 0) delay(delayMs) else yield()
                 } else {
                     VPPlayer.nativeSeekToStart(nativePtr)
+                    frameCounter = 0
                     yield()
                 }
             }
@@ -169,21 +192,25 @@ object SharedStickerEngine {
                     val targetFrame = (timeInCycle / frameDurationNanos).toInt()
 
                     if (targetFrame != lastFrameIndex) {
-                        val currentBitmap = buffers[bufferIndex]!!
-                        currentBitmap.eraseColor(Color.TRANSPARENT)
+                        val cacheKey = "$path@$maxSize@$targetFrame"
+                        val imageToEmit = StickerFrameCache.get(cacheKey) ?: run {
+                            val currentBitmap = buffers[bufferIndex]!!
+                            currentBitmap.eraseColor(Color.TRANSPARENT)
 
-                        RLottiePlayer.nativeRenderFrame(
-                            nativePtr,
-                            targetFrame,
-                            currentBitmap,
-                            maxSize,
-                            maxSize
-                        )
+                            RLottiePlayer.nativeRenderFrame(
+                                nativePtr,
+                                targetFrame,
+                                currentBitmap,
+                                maxSize,
+                                maxSize
+                            )
 
-                        val emitted = currentBitmap.copy(Bitmap.Config.ARGB_8888, false)
-                        emit(emitted.asImageBitmap())
-
-                        bufferIndex = 1 - bufferIndex
+                            val emitted = currentBitmap.copy(Bitmap.Config.HARDWARE, false).asImageBitmap()
+                            StickerFrameCache.put(cacheKey, emitted)
+                            bufferIndex = 1 - bufferIndex
+                            emitted
+                        }
+                        emit(imageToEmit)
                         lastFrameIndex = targetFrame
                     }
                 }

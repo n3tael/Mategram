@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -35,38 +36,37 @@ class TdClientManagerImpl @Inject constructor() : TdClientManager {
 
     private val _newMessagesFlow = MutableSharedFlow<TdApi.Update>(
         replay = 25,
-        extraBufferCapacity = Int.MAX_VALUE,
-        onBufferOverflow = BufferOverflow.SUSPEND
+        extraBufferCapacity = 256,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     override val newMessagesFlow: SharedFlow<TdApi.Update> = _newMessagesFlow
 
     private val _chatsUpdatesFlow = MutableSharedFlow<TdApi.Update>(
         replay = 25,
-        extraBufferCapacity = Int.MAX_VALUE,
-        onBufferOverflow = BufferOverflow.SUSPEND
+        extraBufferCapacity = 256,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     override val chatsUpdatesFlow: SharedFlow<TdApi.Update> = _chatsUpdatesFlow.asSharedFlow()
 
     private val _chatFoldersUpdatesFlow = MutableSharedFlow<TdApi.Update>(
         replay = 25,
-        extraBufferCapacity = Int.MAX_VALUE,
-        onBufferOverflow = BufferOverflow.SUSPEND
+        extraBufferCapacity = 256,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     override val chatFoldersUpdatesFlow: SharedFlow<TdApi.Update> = _chatFoldersUpdatesFlow.asSharedFlow()
 
     private val _filesUpdatesFlow = MutableSharedFlow<TdApi.UpdateFile>(
         replay = 25,
-        extraBufferCapacity = Int.MAX_VALUE,
-        onBufferOverflow = BufferOverflow.SUSPEND
+        extraBufferCapacity = 256,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     override val filesUpdatesFlow: SharedFlow<TdApi.UpdateFile> = _filesUpdatesFlow.asSharedFlow()
 
     private val _updatesFlow = MutableSharedFlow<TdApi.Object>(
         replay = 25,
-        extraBufferCapacity = Int.MAX_VALUE,
-        onBufferOverflow = BufferOverflow.SUSPEND
+        extraBufferCapacity = 256,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-
     override val updatesFlow: SharedFlow<TdApi.Object> = _updatesFlow.asSharedFlow()
 
     init {
@@ -83,36 +83,34 @@ class TdClientManagerImpl @Inject constructor() : TdClientManager {
         if (this::_client.isInitialized) return
 
         _client = Client.create({ update ->
-            tdClientManagerScope.launch {
-                when (update) {
-                    is TdApi.UpdateAuthorizationState -> {
-                        _authUpdatesFlow.value = update.authorizationState
-                    }
-                    is TdApi.UpdateChatFolders,
-                    is TdApi.UpdateUnreadChatCount ->
-                        _chatFoldersUpdatesFlow.tryEmit(update)
-                    is TdApi.UpdateNewChat,
-                    is TdApi.UpdateChatPosition,
-                    is TdApi.UpdateChatLastMessage,
-                    is TdApi.UpdateChatReadInbox,
-                    is TdApi.UpdateChatTitle,
-                    is TdApi.UpdateChatPhoto,
-                    is TdApi.UpdateUser,
-                    is TdApi.UpdateUserStatus ->
-                        _chatsUpdatesFlow.tryEmit(update)
-                    is TdApi.UpdateFile ->
-                        _filesUpdatesFlow.tryEmit(update)
-                    is TdApi.UpdateMessageSendFailed,
-                    is TdApi.UpdateMessageInteractionInfo,
-                    is TdApi.UpdateMessageSendSucceeded,
-                    is TdApi.UpdateNewMessage ->
-                        _newMessagesFlow.tryEmit(update)
-                    is TdApi.UpdateChatReadOutbox -> {
-                        _chatsUpdatesFlow.tryEmit(update)
-                    }
+            when (update) {
+                is TdApi.UpdateAuthorizationState -> {
+                    _authUpdatesFlow.value = update.authorizationState
                 }
-                _updatesFlow.tryEmit(update)
+                is TdApi.UpdateChatFolders,
+                is TdApi.UpdateUnreadChatCount ->
+                    _chatFoldersUpdatesFlow.tryEmit(update)
+                is TdApi.UpdateNewChat,
+                is TdApi.UpdateChatPosition,
+                is TdApi.UpdateChatLastMessage,
+                is TdApi.UpdateChatReadInbox,
+                is TdApi.UpdateChatTitle,
+                is TdApi.UpdateChatPhoto,
+                is TdApi.UpdateUser,
+                is TdApi.UpdateUserStatus ->
+                    _chatsUpdatesFlow.tryEmit(update)
+                is TdApi.UpdateFile ->
+                    _filesUpdatesFlow.tryEmit(update)
+                is TdApi.UpdateMessageSendFailed,
+                is TdApi.UpdateMessageInteractionInfo,
+                is TdApi.UpdateMessageSendSucceeded,
+                is TdApi.UpdateNewMessage ->
+                    _newMessagesFlow.tryEmit(update)
+                is TdApi.UpdateChatReadOutbox -> {
+                    _chatsUpdatesFlow.tryEmit(update)
+                }
             }
+            _updatesFlow.tryEmit(update)
         }, null, null)
 
         TelegramCredentials.initialize(context)

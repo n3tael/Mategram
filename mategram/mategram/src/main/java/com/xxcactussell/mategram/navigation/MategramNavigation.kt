@@ -50,6 +50,7 @@ import com.xxcactussell.presentation.mediaviewer.screen.MediaViewerScreen
 import com.xxcactussell.presentation.messages.model.InputEvent
 import com.xxcactussell.presentation.messages.viewmodel.MessagesViewModel
 import com.xxcactussell.presentation.messages.viewmodel.MessagesViewModelFactory
+import com.xxcactussell.presentation.tools.StickerFrameCache
 
 @SuppressLint("UnusedContentLambdaTargetStateParameter")
 @OptIn(ExperimentalMaterial3AdaptiveApi::class, ExperimentalSharedTransitionApi::class)
@@ -139,7 +140,10 @@ fun MategramNavigation(
                                         )
                                     )
                                 },
-                                onBackHandled = { backStack.removeLastOrNull() },
+                                onBackHandled = {
+                                    backStack.removeLastOrNull()
+                                    StickerFrameCache.clearAll()
+                                                },
                                 onMediaClicked = { messageId ->
                                     backStack.add(
                                         RouteMediaViewer(

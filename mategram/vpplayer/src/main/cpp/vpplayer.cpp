@@ -35,7 +35,7 @@ public:
         codec_ctx = avcodec_alloc_context3(codec);
         avcodec_parameters_to_context(codec_ctx, codecpar);
 
-        codec_ctx->thread_count = 4;
+        codec_ctx->thread_count = 12;
         codec_ctx->thread_type = FF_THREAD_FRAME;
 
         if (avcodec_open2(codec_ctx, codec, nullptr) < 0) return false;

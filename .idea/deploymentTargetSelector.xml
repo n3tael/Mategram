@@ -4,7 +4,7 @@
     <selectionStates>
       <SelectionState runConfigName="Mategram">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2025-11-29T09:08:25.060606Z">
+        <DropdownSelection timestamp="2025-12-02T13:42:53.953519100Z">
           <Target type="DEFAULT_BOOT">
             <handle>
               <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\artyo\.android\avd\Resizable_Experimental.avd" />
@@ -12,6 +12,9 @@
           </Target>
         </DropdownSelection>
         <DialogSelection />
+      </SelectionState>
+      <SelectionState runConfigName="Unnamed">
+        <option name="selectionMode" value="DROPDOWN" />
       </SelectionState>
     </selectionStates>
   </component>

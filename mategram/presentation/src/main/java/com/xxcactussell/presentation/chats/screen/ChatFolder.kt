@@ -42,15 +42,10 @@ fun FolderScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(paddingValues.calculateStartPadding(LocalLayoutDirection.current), 4.dp, paddingValues.calculateEndPadding(LocalLayoutDirection.current), paddingValues.calculateBottomPadding() + 4.dp)
         ) {
-            if (state.isLoading && state.sortedChats[folderId]?.isEmpty() == true) {
-                items(10) {
-                    ChatItemSkeleton()
-                }
-            }
             items(
                 items = state.sortedChats[folderId] ?: emptyList(),
                 contentType = { "chat_item" },
-                key = { chatItemUiState: ChatItemUiState -> chatItemUiState.chat.id }
+                key = { it.chat.id }
 
             ) { chatItemUiState: ChatItemUiState ->
                 ChatItem(
@@ -60,39 +55,4 @@ fun FolderScreen(
             }
         }
     }
-}
-@Composable
-fun ChatItemSkeleton() {
-    ListItem(
-        modifier = Modifier
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(24.dp)),
-        headlineContent = {
-            Box(modifier = Modifier
-                .height(20.dp)
-                .fillMaxWidth(0.5f)
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
-            )
-        },
-        supportingContent = {
-            Box(modifier = Modifier
-                .height(16.dp)
-                .fillMaxWidth(0.8f)
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
-            )
-        },
-        leadingContent = {
-            Box(modifier = Modifier
-                .size(48.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-            )
-        },
-        trailingContent = {
-            Box(modifier = Modifier
-                .height(14.dp)
-                .fillMaxWidth(0.2f)
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
-            )
-        }
-    )
 }
