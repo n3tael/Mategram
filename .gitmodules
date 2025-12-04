@@ -7,3 +7,24 @@
 [submodule "mategram/rlottie/src/main/cpp/rlottie"]
 	path = mategram/rlottie/src/main/cpp/rlottie
 	url = https://github.com/xxcactussell/mategram-rlottie.git
+[submodule "mategram/jni/src/main/cpp/third_party/FFmpeg"]
+	path = mategram/jni/src/main/cpp/third_party/FFmpeg
+	url = https://github.com/FFmpeg/FFmpeg.git
+[submodule "mategram/jni/src/main/cpp/third_party/libvpx"]
+	path = mategram/jni/src/main/cpp/third_party/libvpx
+	url = https://github.com/webmproject/libvpx.git
+[submodule "mategram/jni/src/main/cpp/third_party/rlottie"]
+	path = mategram/jni/src/main/cpp/third_party/rlottie
+	url = https://github.com/xxcactussell/rlottie.git
+[submodule "mategram/jni/src/main/cpp/third_party/libyuv"]
+	path = mategram/jni/src/main/cpp/third_party/libyuv
+	url = https://chromium.googlesource.com/libyuv/libyuv
+[submodule "mategram/jni/src/main/cpp/third_party/jni-utils"]
+	path = mategram/jni/src/main/cpp/third_party/jni-utils
+	url = https://github.com/TGX-Android/jni-utils.git
+[submodule "mategram/jni/src/main/cpp/third_party/lz4"]
+	path = mategram/jni/src/main/cpp/third_party/lz4
+	url = https://github.com/lz4/lz4.git
+[submodule "mategram/jni/src/main/cpp/third_party/libwebp"]
+	path = mategram/jni/src/main/cpp/third_party/libwebp
+	url = https://github.com/webmproject/libwebp.git
