@@ -2,6 +2,12 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/mategram/rlottie/src/main/cpp/rlottie" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mategram/jni/src/main/cpp/third_party/FFmpeg" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mategram/jni/src/main/cpp/third_party/jni-utils" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mategram/jni/src/main/cpp/third_party/libvpx" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mategram/jni/src/main/cpp/third_party/libwebp" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mategram/jni/src/main/cpp/third_party/libyuv" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mategram/jni/src/main/cpp/third_party/lz4" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mategram/jni/src/main/cpp/third_party/rlottie" vcs="Git" />
   </component>
 </project>

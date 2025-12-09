@@ -226,11 +226,7 @@ private fun SmartEmojiBox(
     val needsDownload = file == null || (!file!!.local.isDownloadingActive && !file!!.local.isDownloadingCompleted)
 
     if (path != null) {
-        when (stickerFormat) {
-            StickerFormatTgs -> LottieSticker(path = path, size = size)
-            StickerFormatWebm -> StickerWEBMPlayer(path = path, size = size)
-            StickerFormatWebp -> WebPImage(path = path, size = size)
-        }
+        Sticker(path, size)
     } else {
         Text(text = "⏳", style = style)
         if (needsDownload) {

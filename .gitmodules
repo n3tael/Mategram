@@ -1,21 +1,9 @@
-[submodule "mobile/src/main/cpp/rlottie"]
-	path = mobile/src/main/cpp/rlottie
-	url = https://github.com/xxcactussell/mategram-rlottie.git
-[submodule "rlottie/src/main/cpp/rlottie"]
-	path = rlottie/src/main/cpp/rlottie
-	url = https://github.com/xxcactussell/mategram-rlottie.git
-[submodule "mategram/rlottie/src/main/cpp/rlottie"]
-	path = mategram/rlottie/src/main/cpp/rlottie
-	url = https://github.com/xxcactussell/mategram-rlottie.git
 [submodule "mategram/jni/src/main/cpp/third_party/FFmpeg"]
 	path = mategram/jni/src/main/cpp/third_party/FFmpeg
 	url = https://github.com/FFmpeg/FFmpeg.git
 [submodule "mategram/jni/src/main/cpp/third_party/libvpx"]
 	path = mategram/jni/src/main/cpp/third_party/libvpx
 	url = https://github.com/webmproject/libvpx.git
-[submodule "mategram/jni/src/main/cpp/third_party/rlottie"]
-	path = mategram/jni/src/main/cpp/third_party/rlottie
-	url = https://github.com/xxcactussell/rlottie.git
 [submodule "mategram/jni/src/main/cpp/third_party/libyuv"]
 	path = mategram/jni/src/main/cpp/third_party/libyuv
 	url = https://chromium.googlesource.com/libyuv/libyuv
@@ -28,3 +16,6 @@
 [submodule "mategram/jni/src/main/cpp/third_party/libwebp"]
 	path = mategram/jni/src/main/cpp/third_party/libwebp
 	url = https://github.com/webmproject/libwebp.git
+[submodule "mategram/jni/src/main/cpp/third_party/rlottie"]
+	path = mategram/jni/src/main/cpp/third_party/rlottie
+	url = https://github.com/Samsung/rlottie.git

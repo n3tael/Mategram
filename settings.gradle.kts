@@ -22,10 +22,9 @@ dependencyResolutionManagement {
 rootProject.name = "Mategram"
 include(":mategram")
 include(":mategram:mategram")
-include(":mategram:rlottie")
-include(":mategram:vpplayer")
 include(":mategram:presentation")
 include(":mategram:domain")
 include(":mategram:data")
 include(":mategram:tdlib")
 include(":mategram:utils")
+include(":mategram:jni")

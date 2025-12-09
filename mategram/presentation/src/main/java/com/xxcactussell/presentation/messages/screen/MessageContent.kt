@@ -37,9 +37,6 @@ import com.xxcactussell.presentation.LocalRootViewModel
 import com.xxcactussell.presentation.messages.model.MessageUiItem
 import com.xxcactussell.presentation.tools.ColumnWidthOf
 import com.xxcactussell.presentation.tools.FormattedTextView
-import com.xxcactussell.presentation.tools.LottieSticker
-import com.xxcactussell.presentation.tools.StickerWEBMPlayer
-import com.xxcactussell.presentation.tools.WebPImage
 
 @Composable
 fun MessageContent(message: MessageUiItem.MessageItem, onMediaClicked: (Long) -> Unit, onEvent: (Any) -> Unit) {
@@ -78,22 +75,7 @@ fun MessageStickerContent(sticker: Sticker?, size: Dp) {
         val path = file.local.path
 
         if (file.local.isDownloadingCompleted && path.isNotEmpty()) {
-            when (sticker.format) {
-                is StickerFormatTgs -> {
-                    LottieSticker(path = path, size = size)
-                }
-                is StickerFormatWebm -> {
-                    val aspectRatio = if (sticker.width != 0 && sticker.height != 0) sticker.width.toFloat() / sticker.height.toFloat() else 1f
-                    StickerWEBMPlayer(
-                        path = path,
-                        size = size,
-                        aspectRatio = aspectRatio
-                    )
-                }
-                is StickerFormatWebp -> {
-                    WebPImage(path = path, size = size)
-                }
-            }
+            com.xxcactussell.presentation.tools.Sticker(path, size)
         } else {
             Box(
                 modifier = Modifier

@@ -43,6 +43,7 @@ kotlin {
 
 dependencies {
     implementation(project(":mategram:presentation"))
+    implementation(project(":mategram:jni"))
     implementation(project(":mategram:data"))
     implementation(project(":mategram:domain"))
     implementation(libs.androidx.core.ktx)

@@ -21,10 +21,9 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":mategram:jni"))
     implementation(project(":mategram:domain"))
     implementation(project(":mategram:utils"))
-    implementation(project(":mategram:vpplayer"))
-    implementation(project(":mategram:rlottie"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

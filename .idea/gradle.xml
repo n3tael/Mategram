@@ -13,12 +13,11 @@
             <option value="$PROJECT_DIR$/mategram" />
             <option value="$PROJECT_DIR$/mategram/data" />
             <option value="$PROJECT_DIR$/mategram/domain" />
+            <option value="$PROJECT_DIR$/mategram/jni" />
             <option value="$PROJECT_DIR$/mategram/mategram" />
             <option value="$PROJECT_DIR$/mategram/presentation" />
-            <option value="$PROJECT_DIR$/mategram/rlottie" />
             <option value="$PROJECT_DIR$/mategram/tdlib" />
             <option value="$PROJECT_DIR$/mategram/utils" />
-            <option value="$PROJECT_DIR$/mategram/vpplayer" />
           </set>
         </option>
       </GradleProjectSettings>
