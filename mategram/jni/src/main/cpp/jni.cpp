@@ -16,6 +16,9 @@
 #include <functional>
 #include <filesystem>
 #include <thread>
+#include <list>
+#include <deque>
+#include <condition_variable>
 
 #include "rlottie.h"
 #include "webp/decode.h"
@@ -69,18 +72,31 @@ static std::thread gDiskWorker;
 
 static void diskWorkerThread() {
     std::unique_lock<std::mutex> lk(gDiskQueueMutex);
-    while (gDiskWorkerRunning.load()) {
-        if (gDiskQueue.empty()) {
-            gDiskQueueCv.wait(lk);
-            continue;
+    while (true) {
+        gDiskQueueCv.wait(lk, []{ return !gDiskQueue.empty() || !gDiskWorkerRunning.load(); });
+        if (gDiskQueue.empty() && !gDiskWorkerRunning.load()) {
+            break;
         }
+
+        if (gDiskQueue.empty()) continue;
+
         DiskWriteTask task = std::move(gDiskQueue.front());
         gDiskQueue.pop_front();
         lk.unlock();
+
+        std::string tmpPath = task.path + ".tmp";
         {
-            std::ofstream ofs(task.path, std::ios::binary | std::ios::trunc);
-            if (ofs) ofs.write(reinterpret_cast<const char*>(task.payload.data()), task.payload.size());
+            std::ofstream ofs(tmpPath, std::ios::binary | std::ios::trunc);
+            if (ofs) {
+                ofs.write(reinterpret_cast<const char*>(task.payload.data()), task.payload.size());
+                ofs.flush();
+            }
         }
+        if (std::filesystem::exists(tmpPath) && std::filesystem::file_size(tmpPath) > 0) {
+            std::error_code ec;
+            std::filesystem::rename(tmpPath, task.path, ec);
+        }
+
         lk.lock();
     }
 }
@@ -111,12 +127,15 @@ static void enqueueDiskWriteTask(const std::string& path, std::vector<uint8_t>&&
 
 static std::mutex gCacheMutex;
 struct CacheEntry {
+    std::string key;
     std::shared_ptr<std::vector<uint8_t>> data;
     size_t w;
     size_t h;
-    std::chrono::steady_clock::time_point lastAccess;
 };
-static std::unordered_map<std::string, CacheEntry> gCache;
+
+static std::list<CacheEntry> gCacheList;
+static std::unordered_map<std::string, std::list<CacheEntry>::iterator> gCacheMap;
+
 static size_t gCacheSizeBytes = 0;
 static size_t gCacheMaxBytes = 200ULL * 1024ULL * 1024ULL;
 static std::string gCacheDir;
@@ -129,16 +148,13 @@ static void ensureCacheDirExists() {
 }
 
 static void evictIfNeeded() {
-    if (gCacheSizeBytes <= gCacheMaxBytes) return;
-    std::vector<std::pair<std::string, std::chrono::steady_clock::time_point>> items;
-    for (auto &p : gCache) items.emplace_back(p.first, p.second.lastAccess);
-    std::sort(items.begin(), items.end(), [](auto &a, auto &b){ return a.second < b.second; });
-    for (auto &it : items) {
-        auto found = gCache.find(it.first);
-        if (found == gCache.end()) continue;
-        gCacheSizeBytes -= found->second.data->size();
-        gCache.erase(found);
-        if (gCacheSizeBytes <= gCacheMaxBytes) break;
+    while (gCacheSizeBytes > gCacheMaxBytes && !gCacheList.empty()) {
+        auto& last = gCacheList.back();
+        gCacheMap.erase(last.key);
+        if (last.data) {
+            gCacheSizeBytes -= last.data->size();
+        }
+        gCacheList.pop_back();
     }
 }
 
@@ -159,14 +175,27 @@ static bool loadCacheFromDisk(const std::string& key, std::shared_ptr<std::vecto
     try {
         std::ifstream ifs(path, std::ios::binary);
         if (!ifs) return false;
+
+        ifs.seekg(0, std::ios::end);
+        std::streamsize fsize = ifs.tellg();
+        ifs.seekg(0, std::ios::beg);
+
+        if (fsize < sizeof(int) * 2) return false;
+
         int w = 0, h = 0;
         ifs.read(reinterpret_cast<char*>(&w), sizeof(int));
         ifs.read(reinterpret_cast<char*>(&h), sizeof(int));
+
         if (w <= 0 || h <= 0) return false;
-        size_t bytes = static_cast<size_t>(w) * h * 4;
-        auto buf = std::make_shared<std::vector<uint8_t>>(bytes);
-        ifs.read(reinterpret_cast<char*>(buf->data()), bytes);
+
+        size_t expectedBytes = static_cast<size_t>(w) * h * 4;
+        if (static_cast<size_t>(fsize) < sizeof(int) * 2 + expectedBytes) return false;
+
+        auto buf = std::make_shared<std::vector<uint8_t>>(expectedBytes);
+        ifs.read(reinterpret_cast<char*>(buf->data()), expectedBytes);
+
         if (!ifs) return false;
+
         outData = buf;
         outW = w;
         outH = h;
@@ -178,24 +207,36 @@ static bool loadCacheFromDisk(const std::string& key, std::shared_ptr<std::vecto
 
 static bool retrieveFromCache(const std::string& key, uint8_t* dst, int dstStride, int w, int h) {
     std::lock_guard<std::mutex> lk(gCacheMutex);
-    auto it = gCache.find(key);
-    if (it != gCache.end()) {
-        auto& ce = it->second;
-        ce.lastAccess = std::chrono::steady_clock::now();
-        const auto& buf = *ce.data;
-        for (int y = 0; y < h; ++y) {
-            memcpy(dst + static_cast<size_t>(y) * dstStride, buf.data() + static_cast<size_t>(y) * w * 4, static_cast<size_t>(w) * 4);
+
+    auto it = gCacheMap.find(key);
+    if (it != gCacheMap.end()) {
+        gCacheList.splice(gCacheList.begin(), gCacheList, it->second);
+
+        auto& ce = *it->second;
+        if (ce.w == w && ce.h == h && ce.data) {
+            const auto& buf = *ce.data;
+            for (int y = 0; y < h; ++y) {
+                memcpy(dst + static_cast<size_t>(y) * dstStride, buf.data() + static_cast<size_t>(y) * w * 4, static_cast<size_t>(w) * 4);
+            }
+            return true;
         }
-        return true;
     }
+
     std::shared_ptr<std::vector<uint8_t>> diskBuf;
     int dw = 0, dh = 0;
-    if (loadCacheFromDisk(key, diskBuf, dw, dh) && diskBuf) {
+    gCacheMutex.unlock();
+    bool loaded = loadCacheFromDisk(key, diskBuf, dw, dh);
+    gCacheMutex.lock();
+
+    if (loaded && diskBuf) {
         if (dw == w && dh == h) {
-            auto entry = CacheEntry{diskBuf, static_cast<size_t>(dw), static_cast<size_t>(dh), std::chrono::steady_clock::now()};
-            gCache[key] = entry;
+            CacheEntry newEntry{key, diskBuf, static_cast<size_t>(dw), static_cast<size_t>(dh)};
+            gCacheList.push_front(newEntry);
+            gCacheMap[key] = gCacheList.begin();
+
             gCacheSizeBytes += diskBuf->size();
             evictIfNeeded();
+
             const auto& buf = *diskBuf;
             for (int y = 0; y < h; ++y) {
                 memcpy(dst + static_cast<size_t>(y) * dstStride, buf.data() + static_cast<size_t>(y) * w * 4, static_cast<size_t>(w) * 4);
@@ -224,10 +265,15 @@ static void storeToCache(const std::string& key, const uint8_t* src, int srcStri
     }
     {
         std::lock_guard<std::mutex> lk(gCacheMutex);
-        gCacheSizeBytes += buf->size();
-        gCache[key] = CacheEntry{buf, static_cast<size_t>(w), static_cast<size_t>(h), std::chrono::steady_clock::now()};
-        evictIfNeeded();
+        if (gCacheMap.find(key) == gCacheMap.end()) {
+            CacheEntry newEntry{key, buf, static_cast<size_t>(w), static_cast<size_t>(h)};
+            gCacheList.push_front(newEntry);
+            gCacheMap[key] = gCacheList.begin();
+            gCacheSizeBytes += buf->size();
+            evictIfNeeded();
+        }
     }
+
     std::string srcId;
     {
         auto pos = key.find(':');
@@ -354,7 +400,6 @@ public:
 
     explicit WebPInstance(const uint8_t* data, size_t data_size) {
         mData.assign(data, data + data_size);
-
         uint64_t h64 = fnv1a_hash64(mData.data(), mData.size());
         sourceHash = u64_to_hex(h64);
 
@@ -369,7 +414,7 @@ public:
             dec = WebPAnimDecoderNew(&webp_data, &options);
             if (dec) {
                 WebPAnimDecoderGetInfo(dec, &info);
-                mConversionBuffer.reserve(info.canvas_width * info.canvas_height * 4);
+                // mConversionBuffer will be resized on demand
             }
         }
     }
@@ -386,7 +431,7 @@ public:
         renderHeight = h;
     }
 
-    int renderNext(void* dstPixels, int dstStride) {
+    int renderNext(void* dstPixels, int dstStride, bool onlyAdvance) {
         if (!dec) return -1;
 
         uint8_t* frameRGBA = nullptr;
@@ -402,13 +447,17 @@ public:
         }
 
         int delay = timestamp - lastTimestamp;
-        if (delay <= 0) delay = 16; // Fallback
+        if (delay <= 0) delay = 16;
         lastTimestamp = timestamp;
+
+        if (onlyAdvance) return delay;
+
         int srcW = info.canvas_width;
         int srcH = info.canvas_height;
         int dstW = renderWidth > 0 ? renderWidth : srcW;
         int dstH = renderHeight > 0 ? renderHeight : srcH;
         uint8_t* dst = reinterpret_cast<uint8_t*>(dstPixels);
+
         if (srcW == dstW && srcH == dstH) {
             libyuv::ARGBAttenuate(frameRGBA, srcW * 4,
                                   dst, dstStride,
@@ -561,135 +610,45 @@ public:
         return initialized.load(std::memory_order_acquire);
     }
 
-    int renderNextFrameAndGetDelay(uint8_t* dstPixels, int dstStride, int dstBitmapHeight) {
+    int renderNextFrameAndGetDelay(uint8_t* dstPixels, int dstStride, int dstBitmapHeight, bool onlyAdvance) {
         if (!ensureInit()) return -1;
-        if (!dstPixels) return -1;
+        if (!onlyAdvance && !dstPixels) return -1;
         if (videoStreamIndex < 0 || !fmt_ctx) return -1;
+        for (int retry = 0; retry < 2; ++retry) {
+            int ret;
+            while ((ret = av_read_frame(fmt_ctx, packet)) >= 0) {
+                if (static_cast<int>(packet->stream_index) == videoStreamIndex) {
 
-        int ret;
-        while ((ret = av_read_frame(fmt_ctx, packet)) >= 0) {
-            if (static_cast<int>(packet->stream_index) == videoStreamIndex) {
-
-                bool colorDecoded = false;
-                if (packet->size > 0) {
-                    if (vpx_codec_decode(&vpx_ctx, packet->data, packet->size, nullptr, 0) == VPX_CODEC_OK) {
-                        colorDecoded = true;
-                    } else {
-
+                    bool colorDecoded = false;
+                    if (packet->size > 0) {
+                        if (vpx_codec_decode(&vpx_ctx, packet->data, packet->size, nullptr, 0) == VPX_CODEC_OK) {
+                            colorDecoded = true;
+                        }
                     }
-                }
 
-                if (!colorDecoded) {
-                    av_packet_unref(packet);
-                    continue;
-                }
+                    if (!colorDecoded) {
+                        av_packet_unref(packet);
+                        continue;
+                    }
 
-                bool hasAlpha = false;
+                    bool hasAlpha = false;
 
-                if (vpx_alpha_initialized) {
-                    size_t side_data_size = 0;
-                    uint8_t* side_data = av_packet_get_side_data(packet, AV_PKT_DATA_MATROSKA_BLOCKADDITIONAL, &side_data_size);
+                    if (vpx_alpha_initialized) {
+                        size_t side_data_size = 0;
+                        uint8_t* side_data = av_packet_get_side_data(packet, AV_PKT_DATA_MATROSKA_BLOCKADDITIONAL, &side_data_size);
 
-                    if (side_data && side_data_size > 0) {
-                        if (side_data_size > 8) {
-                            if (vpx_codec_decode(&vpx_alpha_ctx, side_data + 8, side_data_size - 8, nullptr, 0) == VPX_CODEC_OK) {
-                                hasAlpha = true;
+                        if (side_data && side_data_size > 0) {
+                            if (side_data_size > 8) {
+                                if (vpx_codec_decode(&vpx_alpha_ctx, side_data + 8, side_data_size - 8, nullptr, 0) == VPX_CODEC_OK) {
+                                    hasAlpha = true;
+                                }
+                            }
+                            if (!hasAlpha) {
+                                if (vpx_codec_decode(&vpx_alpha_ctx, side_data, side_data_size, nullptr, 0) == VPX_CODEC_OK) {
+                                    hasAlpha = true;
+                                }
                             }
                         }
-
-                        if (!hasAlpha) {
-                            if (vpx_codec_decode(&vpx_alpha_ctx, side_data, side_data_size, nullptr, 0) == VPX_CODEC_OK) {
-                                hasAlpha = true;
-                            }
-                        }
-
-                        if (!hasAlpha) {
-                            LOGD("VPX: SideData found (%zu bytes) but decode failed. First bytes: %02x %02x %02x %02x",
-                                 side_data_size, side_data[0], side_data[1], side_data[2], side_data[3]);
-                        }
-                    }
-                }
-
-                vpx_codec_iter_t iter = nullptr;
-                vpx_image_t* img = vpx_codec_get_frame(&vpx_ctx, &iter);
-
-                vpx_image_t* imgAlpha = nullptr;
-                if (hasAlpha) {
-                    vpx_codec_iter_t iterAlpha = nullptr;
-                    imgAlpha = vpx_codec_get_frame(&vpx_alpha_ctx, &iterAlpha);
-                }
-
-                if (img) {
-                    int srcW = img->d_w;
-                    int srcH = img->d_h;
-                    int dstW = renderWidth > 0 ? renderWidth : srcW;
-                    int dstH = renderHeight > 0 ? renderHeight : srcH;
-
-                    const uint8_t* yplane = img->planes[0];
-                    const uint8_t* uplane = img->planes[1];
-                    const uint8_t* vplane = img->planes[2];
-                    int ystride = img->stride[0];
-                    int ustride = img->stride[1];
-                    int vstride = img->stride[2];
-
-                    const uint8_t* aplane = nullptr;
-                    int astride = 0;
-
-
-                    if (imgAlpha) {
-                        aplane = imgAlpha->planes[0];
-                        astride = imgAlpha->stride[0];
-                    }
-                    else if ((img->fmt & VPX_IMG_FMT_HAS_ALPHA) && img->planes[3]) {
-                        aplane = img->planes[3];
-                        astride = img->stride[3];
-                    }
-
-
-                    if (dstW == srcW && dstH == srcH) {
-                        if (aplane) {
-                            libyuv::I420AlphaToABGR(
-                                    yplane, ystride,
-                                    uplane, ustride,
-                                    vplane, vstride,
-                                    aplane, astride,
-                                    dstPixels, dstStride,
-                                    srcW, srcH,
-                                    1);
-                        } else {
-                            libyuv::I420ToABGR(
-                                    yplane, ystride,
-                                    uplane, ustride,
-                                    vplane, vstride,
-                                    dstPixels, dstStride,
-                                    srcW, srcH);
-                        }
-                    } else {
-                        // Масштабирование
-                        size_t tmpSize = static_cast<size_t>(srcW) * srcH * 4;
-                        if (tmpBuf.size() < tmpSize) tmpBuf.resize(tmpSize);
-
-                        if (aplane) {
-                            libyuv::I420AlphaToABGR(
-                                    yplane, ystride,
-                                    uplane, ustride,
-                                    vplane, vstride,
-                                    aplane, astride,
-                                    tmpBuf.data(), srcW * 4,
-                                    srcW, srcH,
-                                    1);
-                        } else {
-                            libyuv::I420ToABGR(
-                                    yplane, ystride,
-                                    uplane, ustride,
-                                    vplane, vstride,
-                                    tmpBuf.data(), srcW * 4,
-                                    srcW, srcH);
-                        }
-
-                        libyuv::ARGBScale(tmpBuf.data(), srcW * 4, srcW, srcH,
-                                          dstPixels, dstStride, dstW, dstH,
-                                          libyuv::kFilterBilinear);
                     }
 
                     int delay = 33;
@@ -702,44 +661,98 @@ public:
                     }
                     if (delay < 10) delay = 33;
 
-                    av_packet_unref(packet);
-                    frameIndex++;
-                    return delay;
-                }
+                    if (onlyAdvance) {
+                        av_packet_unref(packet);
+                        frameIndex++;
+                        return delay;
+                    }
 
-                av_packet_unref(packet);
-            } else {
-                av_packet_unref(packet);
+                    vpx_codec_iter_t iter = nullptr;
+                    vpx_image_t* img = vpx_codec_get_frame(&vpx_ctx, &iter);
+
+                    vpx_image_t* imgAlpha = nullptr;
+                    if (hasAlpha) {
+                        vpx_codec_iter_t iterAlpha = nullptr;
+                        imgAlpha = vpx_codec_get_frame(&vpx_alpha_ctx, &iterAlpha);
+                    }
+
+                    if (img) {
+                        int srcW = img->d_w;
+                        int srcH = img->d_h;
+                        int dstW = renderWidth > 0 ? renderWidth : srcW;
+                        int dstH = renderHeight > 0 ? renderHeight : srcH;
+
+                        const uint8_t* yplane = img->planes[0];
+                        const uint8_t* uplane = img->planes[1];
+                        const uint8_t* vplane = img->planes[2];
+                        int ystride = img->stride[0];
+                        int ustride = img->stride[1];
+                        int vstride = img->stride[2];
+
+                        const uint8_t* aplane = nullptr;
+                        int astride = 0;
+
+                        if (imgAlpha) {
+                            aplane = imgAlpha->planes[0];
+                            astride = imgAlpha->stride[0];
+                        }
+                        else if ((img->fmt & VPX_IMG_FMT_HAS_ALPHA) && img->planes[3]) {
+                            aplane = img->planes[3];
+                            astride = img->stride[3];
+                        }
+
+                        if (dstW == srcW && dstH == srcH) {
+                            if (aplane) {
+                                libyuv::I420AlphaToABGR(yplane, ystride, uplane, ustride, vplane, vstride, aplane, astride, dstPixels, dstStride, srcW, srcH, 1);
+                            } else {
+                                libyuv::I420ToABGR(yplane, ystride, uplane, ustride, vplane, vstride, dstPixels, dstStride, srcW, srcH);
+                            }
+                        } else {
+                            size_t tmpSize = static_cast<size_t>(srcW) * srcH * 4;
+                            if (tmpBuf.size() < tmpSize) tmpBuf.resize(tmpSize);
+
+                            if (aplane) {
+                                libyuv::I420AlphaToABGR(yplane, ystride, uplane, ustride, vplane, vstride, aplane, astride, tmpBuf.data(), srcW * 4, srcW, srcH, 1);
+                            } else {
+                                libyuv::I420ToABGR(yplane, ystride, uplane, ustride, vplane, vstride, tmpBuf.data(), srcW * 4, srcW, srcH);
+                            }
+
+                            libyuv::ARGBScale(tmpBuf.data(), srcW * 4, srcW, srcH, dstPixels, dstStride, dstW, dstH, libyuv::kFilterBilinear);
+                        }
+
+                        av_packet_unref(packet);
+                        frameIndex++;
+                        return delay;
+                    }
+                    av_packet_unref(packet);
+                } else {
+                    av_packet_unref(packet);
+                }
+            }
+            if (retry == 0) {
+                seekToStart();
+                if (onlyAdvance) {
+                    return 33;
+                }
+                continue;
             }
         }
-
-        seekToStart();
-        return 0;
+        return -1;
     }
 
     void seekToStart() {
         if (fmt_ctx && videoStreamIndex >= 0) {
-            av_seek_frame(fmt_ctx, videoStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
-            buffer_data.offset = 0;
             frameIndex = 0;
-
-            if (vpx_initialized) {
-                vpx_codec_destroy(&vpx_ctx);
-                vpx_initialized = false;
+            buffer_data.offset = 0;
+            if (fmt_ctx->pb) {
+                avio_seek(fmt_ctx->pb, 0, SEEK_SET);
+                avio_flush(fmt_ctx->pb);
             }
-            if (vpx_alpha_initialized) {
-                vpx_codec_destroy(&vpx_alpha_ctx);
-                vpx_alpha_initialized = false;
+            int ret = av_seek_frame(fmt_ctx, videoStreamIndex, 0, AVSEEK_FLAG_BACKWARD | AVSEEK_FLAG_ANY);
+            if (ret < 0) {
+                LOGE("Error seeking to start: %d", ret);
             }
-
-            if (iface) {
-                vpx_codec_dec_cfg_t cfg = {};
-                cfg.threads = 1;
-                vpx_codec_dec_init_ver(&vpx_ctx, iface, &cfg, 0, VPX_DECODER_ABI_VERSION);
-                vpx_initialized = true;
-                vpx_codec_dec_init_ver(&vpx_alpha_ctx, iface, &cfg, 0, VPX_DECODER_ABI_VERSION);
-                vpx_alpha_initialized = true;
-            }
+            avformat_flush(fmt_ctx);
         }
     }
 
@@ -791,7 +804,6 @@ private:
     vpx_codec_ctx_t vpx_ctx{};
     vpx_codec_ctx_t vpx_alpha_ctx{};
 
-    vpx_codec_iface_t* iface = nullptr;
     bool vpx_initialized = false;
     bool vpx_alpha_initialized = false;
 
@@ -871,11 +883,12 @@ Java_com_xxcactussell_jni_NativeStickerCore_renderWebPWithCache(
     std::string filePath = cacheFilePathForKey(key);
 
     if (retrieveFromCache(key, reinterpret_cast<uint8_t*>(locker.getPixels()), stride, w, h)) {
+        int delay = instance->renderNext(nullptr, 0, true);
         instance->frameIndex++;
-        return 40;
+        return (delay > 0) ? delay : 40;
     }
 
-    int delay = instance->renderNext(locker.getPixels(), stride);
+    int delay = instance->renderNext(locker.getPixels(), stride, false);
 
     if (delay > 0) {
         storeToCache(key, reinterpret_cast<const uint8_t*>(locker.getPixels()), stride, w, h, filePath);
@@ -914,20 +927,30 @@ Java_com_xxcactussell_jni_NativeStickerCore_renderVpxWithCache(
         if (vw > 0 && vh > 0) { w = vw; h = vh; } else return -1;
     }
 
-    int frameIdx = instance->frameIndex;
+    int requestedFrameIdx = instance->frameIndex;
     int stride = locker.getInfo().stride;
     uint8_t* pixels = reinterpret_cast<uint8_t*>(locker.getPixels());
 
-    std::string key = makeCacheKeyFromHash("webm", instance->sourceHash, frameIdx, w, h);
+    std::string key = makeCacheKeyFromHash("webm", instance->sourceHash, requestedFrameIdx, w, h);
     std::string filePath = cacheFilePathForKey(key);
 
     if (retrieveFromCache(key, pixels, stride, w, h)) {
-        instance->frameIndex++;
-        return 40;
+        int delay = instance->renderNextFrameAndGetDelay(nullptr, 0, 0, true);
+        return (delay > 0) ? delay : 40;
     }
 
-    int delay = instance->renderNextFrameAndGetDelay(pixels, stride, locker.getInfo().height);
+    int delay = instance->renderNextFrameAndGetDelay(pixels, stride, locker.getInfo().height, false);
+
     if (delay >= 0) {
+
+        int renderedFrameIdx = instance->frameIndex - 1;
+        if (renderedFrameIdx < 0) renderedFrameIdx = 0;
+
+        if (renderedFrameIdx != requestedFrameIdx) {
+            key = makeCacheKeyFromHash("webm", instance->sourceHash, renderedFrameIdx, w, h);
+            filePath = cacheFilePathForKey(key);
+        }
+
         storeToCache(key, pixels, stride, w, h, filePath);
     }
     return delay;
