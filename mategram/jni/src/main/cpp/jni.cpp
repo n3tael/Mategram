@@ -17,10 +17,9 @@
 #include <filesystem>
 #include <thread>
 
-// Библиотеки
 #include "rlottie.h"
 #include "webp/decode.h"
-#include "webp/demux.h" // ВАЖНО: Добавлена для анимации WebP (как в Telegram)
+#include "webp/demux.h"
 #include "libyuv.h"
 
 extern "C" {
@@ -40,8 +39,6 @@ extern "C" {
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
-// --- Utility Functions (Hashing, Hex, etc.) ---
-
 static uint64_t fnv1a_hash64(const uint8_t* data, size_t size) {
     const uint64_t FNV_OFFSET = 14695981039346656037ULL;
     const uint64_t FNV_PRIME = 1099511628211ULL;
@@ -58,8 +55,6 @@ static std::string u64_to_hex(uint64_t v) {
     snprintf(buf, sizeof(buf), "%016zx", static_cast<size_t>(v));
     return std::string(buf);
 }
-
-// --- Disk Cache Worker ---
 
 struct DiskWriteTask {
     std::string path;
@@ -113,8 +108,6 @@ static void enqueueDiskWriteTask(const std::string& path, std::vector<uint8_t>&&
     }
     gDiskQueueCv.notify_one();
 }
-
-// --- Caching Logic ---
 
 static std::mutex gCacheMutex;
 struct CacheEntry {
@@ -247,7 +240,6 @@ static void storeToCache(const std::string& key, const uint8_t* src, int srcStri
     if (!srcId.empty()) {
         std::lock_guard<std::mutex> lk(gFramesMutex);
         int &count = gFramesCachedPerSource[srcId];
-        // Apply limiter to all types to prevent disk trashing
         if (count >= (int)MAX_LOTTIE_FRAMES_PER_INSTANCE) skipDisk = true;
         else ++count;
     }
@@ -275,8 +267,6 @@ Java_com_xxcactussell_jni_NativeStickerCore_shutdownCache(JNIEnv*, jobject) {
     stopDiskWorker();
 }
 
-// --- Bitmap Helper ---
-
 class BitmapLocker {
 public:
     BitmapLocker(JNIEnv* env, jobject bitmap) : env_(env), bitmap_(bitmap) {
@@ -299,8 +289,6 @@ private:
     void* pixels_ = nullptr;
     AndroidBitmapInfo info_{};
 };
-
-// --- Lottie Implementation (UNCHANGED as requested) ---
 
 class LottieInstance {
 public:
@@ -351,18 +339,18 @@ public:
     float frameRate() const { return animation ? animation->frameRate() : 0.0f; }
 };
 
-// --- WebP Implementation (ADAPTED to Telegram Style - Animation API) ---
-
 class WebPInstance {
 public:
     WebPAnimDecoder* dec = nullptr;
     WebPAnimInfo info{};
-    std::vector<uint8_t> mData; // Keep source data alive
+    std::vector<uint8_t> mData;
     std::string sourceHash;
     int renderWidth = 0;
     int renderHeight = 0;
     int lastTimestamp = 0;
     int frameIndex = 0;
+
+    std::vector<uint8_t> mConversionBuffer;
 
     explicit WebPInstance(const uint8_t* data, size_t data_size) {
         mData.assign(data, data + data_size);
@@ -376,14 +364,12 @@ public:
 
         WebPAnimDecoderOptions options;
         if (WebPAnimDecoderOptionsInit(&options)) {
-            // Telegram uses MODE_RGBA or BGRA depending on platform.
-            // Android Bitmaps are usually RGBA_8888 (which is ABGR or RGBA in memory).
-            // libwebp outputs RGBA order by default.
             options.color_mode = MODE_RGBA;
             options.use_threads = 1;
             dec = WebPAnimDecoderNew(&webp_data, &options);
             if (dec) {
                 WebPAnimDecoderGetInfo(dec, &info);
+                mConversionBuffer.reserve(info.canvas_width * info.canvas_height * 4);
             }
         }
     }
@@ -400,7 +386,6 @@ public:
         renderHeight = h;
     }
 
-    // Returns delay for next frame in ms
     int renderNext(void* dstPixels, int dstStride) {
         if (!dec) return -1;
 
@@ -408,7 +393,6 @@ public:
         int timestamp = 0;
 
         if (!WebPAnimDecoderGetNext(dec, &frameRGBA, &timestamp)) {
-            // Animation finished, reset to start
             WebPAnimDecoderReset(dec);
             lastTimestamp = 0;
             frameIndex = 0;
@@ -420,28 +404,26 @@ public:
         int delay = timestamp - lastTimestamp;
         if (delay <= 0) delay = 16; // Fallback
         lastTimestamp = timestamp;
-
         int srcW = info.canvas_width;
         int srcH = info.canvas_height;
         int dstW = renderWidth > 0 ? renderWidth : srcW;
         int dstH = renderHeight > 0 ? renderHeight : srcH;
-
         uint8_t* dst = reinterpret_cast<uint8_t*>(dstPixels);
-
-        // WebP output is RGBA. Android Bitmap (RGBA_8888) is usually ABGR in little-endian.
-        // Telegram typically uses libyuv to scale and convert if needed.
-
         if (srcW == dstW && srcH == dstH) {
-            // Simple Copy + optional conversion if colors look wrong (ARGB vs ABGR)
-            // Assuming standard RGBA output from decoder maps to Android expectations for now
-            // But if colors are swapped (blue/red), use libyuv::ARGBToABGR
-            // libwebp outputs R,G,B,A order in memory.
-            libyuv::ARGBCopy(frameRGBA, srcW * 4,
-                             dst, dstStride,
-                             srcW, srcH);
+            libyuv::ARGBAttenuate(frameRGBA, srcW * 4,
+                                  dst, dstStride,
+                                  srcW, srcH);
         } else {
-            // Scale using libyuv
-            libyuv::ARGBScale(frameRGBA, srcW * 4, srcW, srcH,
+            size_t neededSize = srcW * srcH * 4;
+            if (mConversionBuffer.size() < neededSize) {
+                mConversionBuffer.resize(neededSize);
+            }
+
+            libyuv::ARGBAttenuate(frameRGBA, srcW * 4,
+                                  mConversionBuffer.data(), srcW * 4,
+                                  srcW, srcH);
+
+            libyuv::ARGBScale(mConversionBuffer.data(), srcW * 4, srcW, srcH,
                               dst, dstStride, dstW, dstH,
                               libyuv::kFilterBilinear);
         }
@@ -449,8 +431,6 @@ public:
         return delay;
     }
 };
-
-// --- VPx / WebM Implementation (ADAPTED to Telegram Style - Alpha Handling) ---
 
 #define AVIO_BUFFER_SIZE 4096
 
@@ -550,9 +530,8 @@ public:
             return false;
         }
 
-        // 1. Инициализация основного декодера (Цвет)
         vpx_codec_dec_cfg_t cfg = {};
-        cfg.threads = 1; // Лучше 1 поток на каждый контекст для стикеров, чтобы не оверхедить
+        cfg.threads = 1;
         cfg.w = codecpar->width;
         cfg.h = codecpar->height;
 
@@ -561,8 +540,6 @@ public:
         }
         vpx_initialized = true;
 
-        // 2. Инициализация альфа-декодера (Маска)
-        // Используем тот же интерфейс, так как альфа обычно кодируется тем же кодеком
         if (vpx_codec_dec_init_ver(&vpx_alpha_ctx, chosen, &cfg, 0, VPX_DECODER_ABI_VERSION) != VPX_CODEC_OK) {
             LOGE("VPX: Failed to init alpha decoder");
         } else {
@@ -593,14 +570,12 @@ public:
         while ((ret = av_read_frame(fmt_ctx, packet)) >= 0) {
             if (static_cast<int>(packet->stream_index) == videoStreamIndex) {
 
-                // 1. Декодируем основной цвет (Color)
                 bool colorDecoded = false;
                 if (packet->size > 0) {
                     if (vpx_codec_decode(&vpx_ctx, packet->data, packet->size, nullptr, 0) == VPX_CODEC_OK) {
                         colorDecoded = true;
                     } else {
-                        // Лог ошибки цвета, если нужно
-                        // LOGE("VPX: Color decode failed");
+
                     }
                 }
 
@@ -680,7 +655,7 @@ public:
                                     aplane, astride,
                                     dstPixels, dstStride,
                                     srcW, srcH,
-                                    0);
+                                    1);
                         } else {
                             libyuv::I420ToABGR(
                                     yplane, ystride,
@@ -702,7 +677,7 @@ public:
                                     aplane, astride,
                                     tmpBuf.data(), srcW * 4,
                                     srcW, srcH,
-                                    0);
+                                    1);
                         } else {
                             libyuv::I420ToABGR(
                                     yplane, ystride,
@@ -806,7 +781,7 @@ public:
 
 private:
     std::vector<uint8_t> mBuffer;
-    std::vector<uint8_t> tmpBuf; // Буфер для ресайза
+    std::vector<uint8_t> tmpBuf;
     BufferData buffer_data{};
     AVFormatContext* fmt_ctx = nullptr;
     AVIOContext* avio_ctx = nullptr;
@@ -822,8 +797,6 @@ private:
 
     AVPacket* packet = nullptr;
 };
-
-// --- JNI Export Wrapper Functions ---
 
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_xxcactussell_jni_NativeStickerCore_createLottieHandle(
@@ -894,17 +867,12 @@ Java_com_xxcactussell_jni_NativeStickerCore_renderWebPWithCache(
     int h = instance->renderHeight > 0 ? instance->renderHeight : instance->info.canvas_height;
     int stride = locker.getInfo().stride;
 
-    // Use current frame index for cache key
     std::string key = makeCacheKeyFromHash("webp", instance->sourceHash, instance->frameIndex, w, h);
     std::string filePath = cacheFilePathForKey(key);
 
     if (retrieveFromCache(key, reinterpret_cast<uint8_t*>(locker.getPixels()), stride, w, h)) {
-        // Cache hit. We still need to advance decoder state ideally, but since we are caching "frames"
-        // in sequence, logic implies we are at the right frame.
-        // For simplicity with cache: increment index to simulate progress.
-        // NOTE: Mixed mode (cache + live decoder) is tricky.
         instance->frameIndex++;
-        return 40; // Default delay if retrieved from cache without decoding info
+        return 40;
     }
 
     int delay = instance->renderNext(locker.getPixels(), stride);
@@ -940,7 +908,6 @@ Java_com_xxcactussell_jni_NativeStickerCore_renderVpxWithCache(
 
     int w = instance->renderWidth;
     int h = instance->renderHeight;
-    // Ensure size is known (init triggered if needed)
     if (w <= 0 || h <= 0) {
         int vw = 0, vh = 0;
         instance->getVideoSize(&vw, &vh);
