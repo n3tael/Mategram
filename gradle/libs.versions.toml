@@ -1,9 +1,10 @@
 [versions]
 accompanistDrawablepainter = "0.37.3"
-agp = "8.13.1"
+agp = "8.13.2"
 cameraView = "1.6.0-alpha01"
 coilCompose = "2.7.0"
 coilGif = "2.7.0"
+firebaseBom = "34.6.0"
 hiltAndroid = "2.57.2"
 hiltAndroidCompiler = "2.57.2"
 hiltCompiler = "2.57.2"
@@ -18,7 +19,7 @@ espressoCore = "3.7.0"
 appcompat = "1.7.1"
 kotlinxCoroutinesAndroid = "1.10.2"
 kotlinxCoroutinesCore = "1.10.2"
-libphonenumber = "9.0.19"
+libphonenumber = "9.0.20"
 lifecycleRuntimeKtx = "2.10.0"
 lifecycleViewmodelCompose = "2.10.0"
 lottieCompose = "6.7.1"
@@ -81,6 +82,11 @@ androidx-media3-ui-compose = { module = "androidx.media3:media3-ui-compose", ver
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationCompose" }
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coilCompose" }
 coil-gif = { module = "io.coil-kt:coil-gif", version.ref = "coilGif" }
+firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
+firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
+firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
+firebase-perf = { module = "com.google.firebase:firebase-perf" }
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hiltAndroid" }
 hilt-android-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hiltAndroidCompiler" }
 hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "hiltCompiler" }

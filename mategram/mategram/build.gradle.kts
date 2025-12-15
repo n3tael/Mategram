@@ -3,8 +3,11 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
     id("dagger.hilt.android.plugin")
     id("com.google.devtools.ksp")
+    id("com.google.firebase.firebase-perf")
 }
 
 android {
@@ -16,10 +19,15 @@ android {
         applicationId = "com.xxcactussell.mategram"
         minSdk = 31
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+
+        val myVersionName = rootProject.extra["versionName"] as String
+        val myVersionCode = rootProject.extra["versionCode"] as Int
+        versionName = myVersionName
+        versionCode = myVersionCode
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "APP_VERSION_STRING", "\"$myVersionName\"")
     }
 
     buildTypes {
@@ -34,6 +42,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -42,6 +51,11 @@ kotlin {
 }
 
 dependencies {
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.analytics)
+    implementation(libs.firebase.crashlytics)
+    implementation(libs.firebase.messaging)
+    implementation(libs.firebase.perf)
     implementation(project(":mategram:presentation"))
     implementation(project(":mategram:jni"))
     implementation(project(":mategram:data"))

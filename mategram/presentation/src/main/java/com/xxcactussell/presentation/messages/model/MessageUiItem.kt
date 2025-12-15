@@ -1,9 +1,34 @@
 package com.xxcactussell.presentation.messages.model
 
 import com.xxcactussell.domain.messages.model.Message
+import com.xxcactussell.domain.messages.model.MessageAnimatedEmoji
+import com.xxcactussell.domain.messages.model.MessageAnimation
+import com.xxcactussell.domain.messages.model.MessageAudio
+import com.xxcactussell.domain.messages.model.MessageChecklist
+import com.xxcactussell.domain.messages.model.MessageContact
+import com.xxcactussell.domain.messages.model.MessageDice
+import com.xxcactussell.domain.messages.model.MessageDocument
+import com.xxcactussell.domain.messages.model.MessageExpiredPhoto
+import com.xxcactussell.domain.messages.model.MessageExpiredVideo
+import com.xxcactussell.domain.messages.model.MessageExpiredVideoNote
+import com.xxcactussell.domain.messages.model.MessageExpiredVoiceNote
+import com.xxcactussell.domain.messages.model.MessageGame
+import com.xxcactussell.domain.messages.model.MessageGameScore
+import com.xxcactussell.domain.messages.model.MessageGift
+import com.xxcactussell.domain.messages.model.MessageInvoice
+import com.xxcactussell.domain.messages.model.MessageLocation
+import com.xxcactussell.domain.messages.model.MessagePaidMedia
+import com.xxcactussell.domain.messages.model.MessagePhoto
+import com.xxcactussell.domain.messages.model.MessagePoll
 import com.xxcactussell.domain.messages.model.MessageReaction
-import com.xxcactussell.domain.messages.model.MessageReactions
 import com.xxcactussell.domain.messages.model.MessageReplyTo
+import com.xxcactussell.domain.messages.model.MessageSticker
+import com.xxcactussell.domain.messages.model.MessageStory
+import com.xxcactussell.domain.messages.model.MessageText
+import com.xxcactussell.domain.messages.model.MessageVenue
+import com.xxcactussell.domain.messages.model.MessageVideo
+import com.xxcactussell.domain.messages.model.MessageVideoNote
+import com.xxcactussell.domain.messages.model.MessageVoiceNote
 import com.xxcactussell.domain.messages.model.getId
 import com.xxcactussell.presentation.chats.model.AvatarUiState
 
@@ -28,6 +53,24 @@ fun MessageUiItem.getAlbumId(): Long? = when(this) {
 }
 
 fun MessageUiItem.isAlbum(): Boolean = this is MessageUiItem.AlbumItem || this is MessageUiItem.MessageItem && this.message.mediaAlbumId != 0L
+
+
+fun MessageUiItem.getMessage(): Message? {
+    return when (this) {
+        is MessageUiItem.MessageItem -> this.message
+        is MessageUiItem.AlbumItem -> this.messages.firstOrNull()?.message
+        is MessageUiItem.DateSeparator -> null
+    }
+}
+
+fun MessageUiItem.getItem(): MessageUiItem? {
+    return when (this) {
+        is MessageUiItem.MessageItem -> this
+        is MessageUiItem.AlbumItem -> this.messages.firstOrNull()
+        is MessageUiItem.DateSeparator -> null
+    }
+}
+
 
 fun MessageUiItem.getMessageId(): Long? {
     return when (this) {
@@ -88,5 +131,51 @@ fun MessageUiItem.getAvatar() : AvatarUiState? {
         is MessageUiItem.MessageItem -> this.profilePhoto
         is MessageUiItem.AlbumItem -> this.messages.firstOrNull()?.profilePhoto
         is MessageUiItem.DateSeparator -> null
+    }
+}
+
+fun MessageUiItem.getChatId() : Long {
+    return when(this) {
+        is MessageUiItem.MessageItem -> this.message.chatId
+        is MessageUiItem.AlbumItem -> this.messages.first().message.chatId
+        is MessageUiItem.DateSeparator -> 0L
+    }
+}
+
+fun MessageUiItem.isServiceMessage() : Boolean {
+    return when (this) {
+        is MessageUiItem.AlbumItem -> false
+        is MessageUiItem.DateSeparator -> true
+        is MessageUiItem.MessageItem -> {
+            when(this.message.content) {
+                is MessageAnimation,
+                is MessageAnimatedEmoji,
+                is MessageAudio,
+                is MessageChecklist,
+                is MessageContact,
+                is MessageDice,
+                is MessageDocument,
+                MessageExpiredPhoto,
+                MessageExpiredVideo,
+                MessageExpiredVideoNote,
+                MessageExpiredVoiceNote,
+                is MessageGame,
+                is MessageGameScore,
+                is MessageGift,
+                is MessageInvoice,
+                is MessageLocation,
+                is MessagePaidMedia,
+                is MessagePhoto,
+                is MessagePoll,
+                is MessageSticker,
+                is MessageStory,
+                is MessageText,
+                is MessageVenue,
+                is MessageVideo,
+                is MessageVideoNote,
+                is MessageVoiceNote -> false
+                else -> true
+            }
+        }
     }
 }

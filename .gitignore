@@ -13,10 +13,6 @@
 .externalNativeBuild
 .cxx
 local.properties
-/mobile/src/main/jniLibs/arm64-v8a/libtdjni.so
-/mobile/src/main/jniLibs/armeabi-v7a/libtdjni.so
-/mobile/src/main/jniLibs/x86/libtdjni.so
-/mobile/src/main/jniLibs/x86_64/libtdjni.so
-/mobile/src/main/java/org/drinkless/tdlib/
 /mategram/mategram/release/
 /mategram/mategram/release/*
+/mategram/mategram/google-services.json

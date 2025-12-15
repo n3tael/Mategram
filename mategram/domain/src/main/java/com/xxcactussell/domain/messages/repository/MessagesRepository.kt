@@ -13,6 +13,7 @@ import com.xxcactussell.domain.messages.model.MessageSender
 import com.xxcactussell.domain.messages.model.MessageSenderChat
 import com.xxcactussell.domain.messages.model.MessageSenderUser
 import com.xxcactussell.domain.messages.model.MessageSource
+import com.xxcactussell.domain.messages.model.ReactionType
 import com.xxcactussell.domain.messages.model.TextEntity
 import com.xxcactussell.domain.messages.model.getId
 import com.xxcactussell.domain.utils.FileHelper
@@ -41,8 +42,24 @@ interface MessagesRepository {
     fun getChatFlow(chatId: Long): Flow<List<MessageListItem>>
     fun loadMoreHistory(chatId: Long)
     fun clearChatSession(chatId: Long)
+
+    fun addReactionToMessage(chatId: Long, messageId: Long, reactionType: ReactionType)
+
+    fun removeReactionFromMessage(chatId: Long, messageId: Long, reactionType: ReactionType)
 }
 
+
+class AddReactionToMessageUseCase @Inject constructor(
+    private val messageRepository: MessagesRepository
+) {
+    operator fun invoke(chatId: Long, messageId: Long, reactionType: ReactionType) = messageRepository.addReactionToMessage(chatId, messageId, reactionType)
+}
+
+class RemoveReactionFromMessageUseCase @Inject constructor(
+    private val messageRepository: MessagesRepository
+) {
+    operator fun invoke(chatId: Long, messageId: Long, reactionType: ReactionType) = messageRepository.removeReactionFromMessage(chatId, messageId, reactionType)
+}
 class LoadMoreHistoryUseCase @Inject constructor(
     private val messageRepository: MessagesRepository
 ) {

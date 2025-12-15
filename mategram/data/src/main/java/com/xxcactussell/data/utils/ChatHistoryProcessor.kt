@@ -4,6 +4,7 @@ import android.util.Log
 import com.xxcactussell.data.TdClientManager
 import com.xxcactussell.data.impl.MessagesRepositoryImpl
 import com.xxcactussell.domain.messages.model.Message
+import com.xxcactussell.domain.messages.model.MessageInteractionInfo
 import com.xxcactussell.domain.messages.model.MessageListItem
 import com.xxcactussell.domain.messages.model.getId
 import kotlinx.coroutines.CoroutineScope
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.drinkless.tdlib.TdApi
 import java.util.concurrent.ConcurrentHashMap
 
 class ChatHistoryProcessor(
@@ -55,6 +57,31 @@ class ChatHistoryProcessor(
         }
     }
 
+    fun processUpdateInteractionInfo(messageId: Long, interaction: MessageInteractionInfo?) {
+        val currentList = _items.value
+        val updatedList = currentList.map { item ->
+            when (item) {
+                is MessageListItem.MessageItem -> {
+                    if (item.message.id == messageId) item.copy(message = item.message.copy(interactionInfo = interaction)) else item
+                }
+
+                is MessageListItem.AlbumItem -> {
+                    if (item.messages.any { it.id == messageId }) {
+                        val newMsgs =
+                            item.messages.map { if (it.id == messageId) it.copy(interactionInfo = interaction) else it }
+                        item.copy(messages = newMsgs)
+                    } else {
+                        item
+                    }
+                }
+            }
+        }
+
+        if (updatedList != currentList) {
+            _items.value = updatedList
+        }
+    }
+
     fun processUpdatedMessage(oldId: Long, updatedMessage: Message) {
         val currentList = _items.value
         val updatedList = currentList.map { item ->
@@ -63,7 +90,6 @@ class ChatHistoryProcessor(
                     if (item.message.id == oldId) item.copy(message = updatedMessage) else item
                 }
                 is MessageListItem.AlbumItem -> {
-                    // Если сообщение внутри альбома - обновляем его
                     if (item.messages.any { it.id == oldId }) {
                         val newMsgs = item.messages.map { if (it.id == oldId) updatedMessage else it }
                         item.copy(messages = newMsgs)

@@ -15,6 +15,7 @@ import com.xxcactussell.domain.messages.model.MessageSender
 import com.xxcactussell.domain.messages.model.MessageSenderChat
 import com.xxcactussell.domain.messages.model.MessageSenderUser
 import com.xxcactussell.domain.messages.model.MessageSource
+import com.xxcactussell.domain.messages.model.ReactionType
 import com.xxcactussell.domain.messages.model.getId
 import com.xxcactussell.domain.messages.repository.MessagesRepository
 import kotlinx.coroutines.CoroutineScope
@@ -74,6 +75,11 @@ class MessagesRepositoryImpl @Inject constructor(
                         val domainMsg = updateNewMessage.message.toDomain()
                         getProcessor(domainMsg.chatId).processUpdatedMessage(updateNewMessage.oldMessageId, domainMsg)
                     }
+                    is TdApi.UpdateMessageInteractionInfo -> {
+                        getProcessor(updateNewMessage.chatId).processUpdateInteractionInfo(updateNewMessage.messageId,
+                            updateNewMessage.interactionInfo?.toDomain()
+                        )
+                    }
                 }
             }.launchIn(repositoryScope)
 
@@ -106,6 +112,22 @@ class MessagesRepositoryImpl @Inject constructor(
 
     override fun clearChatSession(chatId: Long) {
         chatProcessors.remove(chatId)?.clear()
+    }
+
+    override fun addReactionToMessage(
+        chatId: Long,
+        messageId: Long,
+        reactionType: ReactionType,
+    ) {
+        clientManager.send(TdApi.AddMessageReaction(chatId, messageId, reactionType.toData(), false, false), null)
+    }
+
+    override fun removeReactionFromMessage(
+        chatId: Long,
+        messageId: Long,
+        reactionType: ReactionType,
+    ) {
+        clientManager.send(TdApi.RemoveMessageReaction(chatId, messageId, reactionType.toData()), null)
     }
 
     suspend fun resolveSenders(senderIds: Set<MessageSender>): Map<Long, Any> {

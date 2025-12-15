@@ -15,7 +15,7 @@ class TelegramCredentials {
         const val USE_TEST_DC = false
         const val USE_MESSAGE_DATABASE = true
         const val USE_SECRET_CHATS = true
-        const val APPLICATION_VERSION = "2.0"
+        const val APPLICATION_VERSION = BuildConfig.APP_VERSION_STRING
         const val API_ID = BuildConfig.TELEGRAM_API_ID
         const val API_HASH = BuildConfig.TELEGRAM_API_HASH
         val systemLanguageCode: String = Resources.getSystem().configuration.locales[0].toString()

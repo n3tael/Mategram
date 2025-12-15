@@ -29,7 +29,9 @@ import com.xxcactussell.domain.files.repository.CancelDownloadFileUseCase
 import com.xxcactussell.domain.messages.model.InputMessageContent
 import com.xxcactussell.domain.messages.model.MessageListItem
 import com.xxcactussell.domain.messages.model.MessageSource
+import com.xxcactussell.domain.messages.model.ReactionType
 import com.xxcactussell.domain.messages.model.getDate
+import com.xxcactussell.domain.messages.repository.AddReactionToMessageUseCase
 import com.xxcactussell.domain.messages.repository.BuildMessageContentUseCase
 import com.xxcactussell.domain.messages.repository.CloseChatUseCase
 import com.xxcactussell.domain.messages.repository.GetChatFlowUseCase
@@ -37,6 +39,7 @@ import com.xxcactussell.domain.messages.repository.LoadMoreHistoryUseCase
 import com.xxcactussell.domain.messages.repository.MarkMessageAsRead
 import com.xxcactussell.domain.messages.repository.ObserveLastReadOutboxMessageUseCase
 import com.xxcactussell.domain.messages.repository.OpenChatUseCase
+import com.xxcactussell.domain.messages.repository.RemoveReactionFromMessageUseCase
 import com.xxcactussell.domain.messages.repository.SendMessageUseCase
 import com.xxcactussell.presentation.chats.model.AttachmentEntry
 import com.xxcactussell.presentation.chats.model.AvatarUiState
@@ -60,6 +63,8 @@ import com.xxcactussell.presentation.messages.model.MessagesEvent.ShowScrollToBo
 import com.xxcactussell.presentation.messages.model.MessagesEvent.UpdateFirstVisibleItemIndex
 import com.xxcactussell.presentation.messages.model.MessagesUiState
 import com.xxcactussell.presentation.messages.model.RecordingMode
+import com.xxcactussell.presentation.messages.model.getMessage
+import com.xxcactussell.presentation.messages.model.getMessageId
 import com.xxcactussell.presentation.root.workers.DownloadFileWorker
 import com.xxcactussell.presentation.tools.FileOpener
 import com.xxcactussell.presentation.tools.isSameDay
@@ -89,6 +94,8 @@ class MessagesViewModel @AssistedInject constructor(
     private val sendMessageUseCase: SendMessageUseCase,
     private val observeChatStatuses: ObserveChatStatusesUseCase,
     private val buildMessageContent: BuildMessageContentUseCase,
+    private val addReactionToMessage: AddReactionToMessageUseCase,
+    private val removeReactionFromMessage: RemoveReactionFromMessageUseCase,
     private val cancelDownloadFileUseCase: CancelDownloadFileUseCase,
     private val workManager: WorkManager,
     private val markMessageAsRead: MarkMessageAsRead,
@@ -261,6 +268,8 @@ class MessagesViewModel @AssistedInject constructor(
             is CancelDownloadFile -> cancelDownload(event.fileId)
             is DownloadFile -> downloadFile(event.fileId, event.fileName)
             is OpenFile -> openFile(event.context, event.fileName)
+            is MessagesEvent.ToggleReaction -> toggleReaction(event.chatId, event.messageId, event.reactionType)
+            is MessagesEvent.ReplyToSelected -> _uiState.update { it.copy(messageToReplay = event.message) }
         }
     }
 
@@ -295,8 +304,7 @@ class MessagesViewModel @AssistedInject constructor(
     private fun sendMessage(content: List<InputMessageContent>) {
         viewModelScope.launch {
             try {
-                // Отправляем, результат придет через поток messagesRepository.getChatFlow
-                sendMessageUseCase(chatId, content)
+                sendMessageUseCase(chatId, content, uiState.value.messageToReplay?.getMessageId() ?: 0L)
 
                 _uiState.update { currentState ->
                     currentState.copy(
@@ -456,5 +464,13 @@ class MessagesViewModel @AssistedInject constructor(
         val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         val file = java.io.File(downloadsDir, "Mategram/${fileName}")
         FileOpener.openFile(context, file)
+    }
+
+    fun toggleReaction(chatId: Long, messageId: Long, reactionType: ReactionType) {
+        if (uiState.value.getMessage(messageId)?.interactionInfo?.reactions?.reactions?.firstOrNull { it.type == reactionType } != null) {
+            removeReactionFromMessage(chatId, messageId, reactionType)
+        } else {
+            addReactionToMessage(chatId, messageId, reactionType)
+        }
     }
 }

@@ -1,15 +1,8 @@
 package com.xxcactussell.presentation.messages.screen
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import com.xxcactussell.domain.messages.model.MessageAnimatedEmoji
 import com.xxcactussell.domain.messages.model.MessageAnimation
 import com.xxcactussell.domain.messages.model.MessageDice
@@ -19,11 +12,10 @@ import com.xxcactussell.domain.messages.model.MessageSticker
 import com.xxcactussell.domain.messages.model.MessageText
 import com.xxcactussell.domain.messages.model.MessageVideo
 import com.xxcactussell.presentation.messages.model.MessageUiItem
-import com.xxcactussell.presentation.messages.model.getReactions
-import com.xxcactussell.presentation.messages.model.isOutgoing
 
 @Composable
 fun MessageItemContent(
+    modifier: Modifier = Modifier,
     message: MessageUiItem,
     topCorner: Dp,
     bottomCorner: Dp,
@@ -33,7 +25,8 @@ fun MessageItemContent(
     isUnread: Boolean,
     onReplyClicked: (Long) -> Unit,
     onMediaClicked: (Long) -> Unit,
-    onEvent: (Any) -> Unit
+    onEvent: (Any) -> Unit,
+    replyProgress: @Composable () -> Unit
 ) {
     when(message) {
         is MessageUiItem.DateSeparator -> {
@@ -59,6 +52,7 @@ fun MessageItemContent(
                         !(content is MessageVideo && content.caption.text.isEmpty())
 
                 BubbleMessage(
+                    modifier = modifier,
                     message = message,
                     isOutgoing = message.message.isOutgoing,
                     hasBubble = hasBubble,
@@ -68,6 +62,8 @@ fun MessageItemContent(
                     isGroup = isGroup,
                     bottomCorner = bottomCorner,
                     isUnread = isUnread,
+                    onEvent = onEvent,
+                    replyProgress = replyProgress,
                     onReplyClicked = onReplyClicked
                 ) {
                     MessageContent(message = message, onMediaClicked = onMediaClicked, onEvent = onEvent)
@@ -84,19 +80,23 @@ fun MessageItemContent(
                 }
             }
             BubbleMessage(
+                modifier = modifier,
                 message = message,
+                isUnread = isUnread,
                 isOutgoing = message.messages.first().message.isOutgoing,
                 hasBubble = isCaption != null || message.messages.any { it.message.content is MessageDocument },
                 topCorner = topCorner,
                 bottomCorner = bottomCorner,
+                needSenderName = needSenderName,
                 needAvatar = needAvatar,
                 isGroup = isGroup,
-                needSenderName = needSenderName,
-                isUnread = isUnread,
-                onReplyClicked = onReplyClicked
-            ) {
-                MessageAlbum(messages = message.messages, onMediaClicked = onMediaClicked)
-            }
+                onEvent = onEvent,
+                replyProgress = replyProgress,
+                onReplyClicked = onReplyClicked,
+                {
+                    MessageAlbum(messages = message.messages, onMediaClicked = onMediaClicked)
+                },
+            )
         }
     }
 }

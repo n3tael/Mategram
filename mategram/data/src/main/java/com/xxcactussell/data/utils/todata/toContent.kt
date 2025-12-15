@@ -1897,3 +1897,9 @@ fun WebApp.toData(): TdApi.WebApp = TdApi.WebApp(
     this.animation?.toData()
 )
 
+fun ReactionType.toData() : TdApi.ReactionType =
+    when(this) {
+        is ReactionType.Emoji -> TdApi.ReactionTypeEmoji(this.emoji)
+        is ReactionType.Custom -> TdApi.ReactionTypeCustomEmoji(this.id)
+        is ReactionType.Paid -> TdApi.ReactionTypePaid()
+    }

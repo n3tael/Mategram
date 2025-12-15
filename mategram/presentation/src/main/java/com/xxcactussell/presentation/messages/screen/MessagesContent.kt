@@ -13,13 +13,16 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,17 +32,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.layout.LazyLayoutCacheWindow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Reply
 import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.VideoFile
@@ -47,6 +51,7 @@ import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -64,6 +69,7 @@ import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -78,10 +84,11 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onVisibilityChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import com.google.android.material.chip.ChipGroup
 import com.xxcactussell.domain.chats.model.ChatType
 import com.xxcactussell.presentation.chats.model.AvatarUiState
 import com.xxcactussell.presentation.chats.screen.ChatAvatar
@@ -90,21 +97,25 @@ import com.xxcactussell.presentation.messages.model.InputEvent
 import com.xxcactussell.presentation.messages.model.MessageUiItem
 import com.xxcactussell.presentation.messages.model.MessagesEvent
 import com.xxcactussell.presentation.messages.model.MessagesUiState
+import com.xxcactussell.presentation.messages.model.getItem
 import com.xxcactussell.presentation.messages.model.getMessageDate
 import com.xxcactussell.presentation.messages.model.getMessageId
 import com.xxcactussell.presentation.messages.model.getMessageSenderId
-import com.xxcactussell.presentation.messages.model.getReactions
 import com.xxcactussell.presentation.messages.model.getReplyTo
 import com.xxcactussell.presentation.messages.model.isOutgoing
+import com.xxcactussell.presentation.messages.model.isServiceMessage
 import com.xxcactussell.presentation.tools.InputMessageField
 import com.xxcactussell.presentation.tools.formatTimestampToDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import kotlin.math.roundToInt
 
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class,
+    ExperimentalFoundationApi::class
+)
 @Composable
 fun MessagesContent(
     state: MessagesUiState,
@@ -117,7 +128,7 @@ fun MessagesContent(
     val scope = rememberCoroutineScope()
 
     val sizeNewMessageButton = ButtonDefaults.MediumContainerHeight
-    val lazyListState = rememberLazyListState()
+    val lazyListState = rememberLazyListState(cacheWindow = LazyLayoutCacheWindow(0.5f, 0.5f))
 
     var highlightedMessageId by remember { mutableStateOf<Long?>(null) }
     var pendingScrollToMessageId by remember { mutableStateOf<Long?>(null) }
@@ -242,7 +253,31 @@ fun MessagesContent(
         bottomBar = { InputMessageField(
             state = state,
             onEvent = onEvent,
-            onCameraClicked = onCameraClicked
+            onCameraClicked = onCameraClicked,
+            onReplyClicked = { replyToMessageId ->
+                val index = state.messages.indexOfFirst { item ->
+                    val itemId = item.getMessageId()
+                    if (itemId == replyToMessageId) return@indexOfFirst true
+                    if (item is MessageUiItem.AlbumItem) {
+                        return@indexOfFirst item.messages.any { it.message.id == replyToMessageId }
+                    }
+                    false
+                }
+
+                if (index != -1) {
+                    scope.launch {
+                        lazyListState.animateScrollToItem(index)
+                        highlightedMessageId = replyToMessageId
+                    }
+                } else {
+                    scope.launch {
+                        pendingScrollToMessageId = replyToMessageId
+                        if (state.messages.isNotEmpty()) {
+                            lazyListState.animateScrollToItem(state.messages.lastIndex, -2)
+                        }
+                    }
+                }
+            },
         ) }
     ) { paddingValues ->
         Box(
@@ -256,9 +291,7 @@ fun MessagesContent(
                 state = lazyListState,
                 reverseLayout = true,
                 contentPadding = PaddingValues(
-                    start = paddingValues.calculateStartPadding(LocalLayoutDirection.current) + 8.dp,
                     top = 8.dp,
-                    end = paddingValues.calculateEndPadding(LocalLayoutDirection.current) + 8.dp,
                     bottom = paddingValues.calculateBottomPadding() + 8.dp
                 ),
                 modifier = Modifier.fillMaxSize(),
@@ -376,33 +409,67 @@ fun MessagesContent(
                         }
                         else -> false
                     }
-                    Column(
-                        modifier = Modifier
+
+                    val max = 0.dp
+                    val min = (-120).dp
+                    val (minPx, maxPx) = with(LocalDensity.current) { min.toPx() to max.toPx() }
+                    val offsetPosition = remember { mutableFloatStateOf(0f) }
+
+                    val messageItemModifier = when(message.isServiceMessage() || (state.chat?.type is ChatType.Supergroup && (state.chat.type as ChatType.Supergroup).isChannel)) {
+                        false -> Modifier.draggable(
+                                    state = rememberDraggableState { delta ->
+                                        val newValue = offsetPosition.floatValue + delta
+                                        offsetPosition.floatValue = newValue.coerceIn(minPx, maxPx)
+                                    },
+                                    orientation = Orientation.Horizontal,
+                                    onDragStopped = {
+                                        if (offsetPosition.floatValue == minPx) {
+                                            onEvent(MessagesEvent.ReplyToSelected(message.getItem()))
+                                        }
+                                        offsetPosition.floatValue = 0f
+                                    }
+                                )
+                        true -> Modifier
+                        }
+
+                    Box(
+                        modifier = messageItemModifier
                             .fillMaxWidth()
                             .background(animatedColor.value)
                             .onVisibilityChanged {
                                 if (index + 5 > state.messages.size) {
                                     onEvent(MessagesEvent.LoadMoreHistory)
                                 }
-                                if ((message.getMessageId() ?: 0L) > (state.chat?.lastReadInboxMessageId ?: 0L)) {
+                                if ((message.getMessageId()
+                                        ?: 0L) > (state.chat?.lastReadInboxMessageId ?: 0L)
+                                ) {
                                     when (message) {
                                         is MessageUiItem.MessageItem -> {
                                             onEvent(MessagesEvent.MessageRead(message.message.id))
                                         }
+
                                         is MessageUiItem.AlbumItem -> {
                                             message.messages.forEach {
                                                 onEvent(MessagesEvent.MessageRead(it.message.id))
                                             }
                                         }
+
                                         else -> {
 
                                         }
                                     }
                                 }
-                            },
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            }
+                            .padding(
+                                start = paddingValues.calculateStartPadding(LocalLayoutDirection.current) + 8.dp,
+                                end = paddingValues.calculateEndPadding(LocalLayoutDirection.current) + 8.dp
+                            )
                     ) {
                         MessageItemContent(
+                            modifier = Modifier
+                                .offset {
+                                IntOffset(offsetPosition.floatValue.roundToInt(), 0)
+                            },
                             message = message,
                             topCorner = topCorner,
                             bottomCorner = bottomCorner,
@@ -436,7 +503,27 @@ fun MessagesContent(
                                 }
                             },
                             onEvent = onEvent
-                        )
+                        ) {
+                            AnimatedVisibility(
+                                visible = (offsetPosition.floatValue < maxPx)
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularWavyProgressIndicator(
+                                        progress = {
+                                            offsetPosition.floatValue / minPx
+                                        }
+                                    )
+                                    Icon(
+                                        Icons.AutoMirrored.Rounded.Reply,
+                                        "",
+                                        Modifier.size(20.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
                     }
                     if (topCorner == 18.dp) Spacer(modifier = Modifier.height(8.dp))
                 }

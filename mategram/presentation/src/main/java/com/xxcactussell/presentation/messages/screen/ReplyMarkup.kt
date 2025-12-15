@@ -129,6 +129,7 @@ fun ReplyBubble(
 
 @Composable
 fun ReplyMarkupMessage(
+    modifier: Modifier = Modifier,
     messageReplyTo: MessageReplyTo.Message
 ) {
     val iconModifier = Modifier.size(16.dp)
@@ -411,8 +412,11 @@ fun ReplyMarkupMessage(
         }
         else -> null
     }
+
+    val rowModifier = if (modifier == Modifier) modifier.padding(start = if (icon != null) 10.dp else 16.dp, end = 16.dp).padding(vertical = 8.dp) else modifier
+
     Row(
-        modifier = Modifier.padding(start = if (icon != null) 10.dp else 16.dp, end = 16.dp).padding(vertical = 8.dp),
+        modifier = rowModifier,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

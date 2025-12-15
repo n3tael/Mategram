@@ -21,8 +21,10 @@ android {
         minSdk = 31
         val apiId: String = localProperties.getProperty("TELEGRAM_API_ID")?: "0"
         val apiHash: String = localProperties.getProperty("TELEGRAM_API_HASH")?: "YOUR_API_HASH"
+        val myVersionName = rootProject.extra["versionName"] as String
         buildConfigField("int", "TELEGRAM_API_ID", apiId)
         buildConfigField("String", "TELEGRAM_API_HASH", apiHash)
+        buildConfigField("String", "APP_VERSION_STRING", "\"$myVersionName\"")
     }
 }
 

@@ -4,6 +4,8 @@ import android.content.Context
 import android.net.Uri
 import com.xxcactussell.domain.chats.model.Chat
 import com.xxcactussell.domain.messages.model.InputMessageContent
+import com.xxcactussell.domain.messages.model.Message
+import com.xxcactussell.domain.messages.model.ReactionType
 import com.xxcactussell.presentation.chats.model.AttachmentEntry
 import java.io.File
 
@@ -24,9 +26,17 @@ data class MessagesUiState(
     val showAttachmentsMenu: Boolean = false,
     val chatStatusStringKey: String? = null,
     val wasOnline: Int = 0,
+    val messageToReplay: MessageUiItem? = null,
     val attachmentsType: String? = null
 )
 
+fun MessagesUiState.getMessage(messageId: Long) : Message? {
+    return when(val uiItem = messages.firstOrNull { it.getMessageId() == messageId }) {
+        is MessageUiItem.MessageItem -> uiItem.message
+        is MessageUiItem.AlbumItem -> uiItem.messages.firstOrNull { it.message.id == messageId }?.message
+        else -> null
+    }
+}
 sealed interface MessagesEvent {
     data class SendClicked(val content: List<InputMessageContent>) : MessagesEvent
     object LoadMoreHistory : MessagesEvent
@@ -41,6 +51,8 @@ sealed interface MessagesEvent {
     data class DownloadFile(val fileId: Int, val fileName: String) : MessagesEvent
     data class CancelDownloadFile(val fileId: Int, val fileName: String) : MessagesEvent
     data class OpenFile(val context: Context, val fileName: String) : MessagesEvent
+    data class ReplyToSelected(val message: MessageUiItem?) : MessagesEvent
+    data class ToggleReaction(val chatId: Long, val messageId: Long, val reactionType: ReactionType) : MessagesEvent
 }
 
 sealed interface InputEvent {

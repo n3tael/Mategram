@@ -236,6 +236,7 @@ fun ChatListContent(
     ) { paddingValues ->
         HorizontalPager(
             state = pagerState,
+            beyondViewportPageCount = 2,
             pageSpacing = 16.dp
         ) { page ->
             if (page < state.allTabs.size) {

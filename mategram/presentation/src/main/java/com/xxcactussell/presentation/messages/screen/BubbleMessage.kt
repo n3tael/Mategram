@@ -1,7 +1,6 @@
 package com.xxcactussell.presentation.messages.screen
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,14 +12,12 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -29,7 +26,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -37,15 +33,17 @@ import com.xxcactussell.domain.messages.model.Message
 import com.xxcactussell.domain.messages.model.MessageStatus
 import com.xxcactussell.presentation.chats.screen.ChatAvatar
 import com.xxcactussell.presentation.messages.model.MessageUiItem
+import com.xxcactussell.presentation.messages.model.MessagesEvent
 import com.xxcactussell.presentation.messages.model.getAvatar
+import com.xxcactussell.presentation.messages.model.getChatId
+import com.xxcactussell.presentation.messages.model.getMessageId
 import com.xxcactussell.presentation.messages.model.getReactions
-import com.xxcactussell.presentation.messages.model.isOutgoing
-import kotlin.concurrent.atomics.AtomicLongArray
 import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun BubbleMessage(
+    modifier: Modifier = Modifier,
     message: MessageUiItem,
     isUnread: Boolean,
     isOutgoing: Boolean,
@@ -55,6 +53,8 @@ fun BubbleMessage(
     needSenderName: Boolean,
     needAvatar: Boolean,
     isGroup: Boolean,
+    onEvent: (Any) -> Unit,
+    replyProgress: @Composable (() -> Unit),
     onReplyClicked: (Long) -> Unit,
     content: @Composable (() -> Unit)
 ) {
@@ -136,7 +136,7 @@ fun BubbleMessage(
     }
 
     Box(
-        modifier = Modifier.Companion
+        modifier = modifier
             .fillMaxWidth()
             .padding(
                 start = startPadding,
@@ -189,6 +189,14 @@ fun BubbleMessage(
                         )
                     }
                 }
+                Box(Modifier
+                    .size(36.dp)
+                    .align(Alignment.BottomEnd)
+                    .offset(52.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    replyProgress()
+                }
             }
 
             if (needAvatar) {
@@ -206,15 +214,24 @@ fun BubbleMessage(
             }
 
             val reactions = message.getReactions()
-            if (reactions.isNotEmpty()) {
-                Spacer(Modifier.height(4.dp))
+
+            AnimatedVisibility(
+                visible = reactions.isNotEmpty()
+            ) {
                 FlowRow(
+                    modifier = Modifier.padding(top = 4.dp),
                     maxItemsInEachRow = 4,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     reactions.forEach {
-                        ReactionChip(it) { }
+                        ReactionChip(it) {
+                            onEvent(MessagesEvent.ToggleReaction(
+                                message.getChatId(),
+                                message.getMessageId() ?: 0L,
+                                it.type
+                            ))
+                        }
                     }
                 }
             }
