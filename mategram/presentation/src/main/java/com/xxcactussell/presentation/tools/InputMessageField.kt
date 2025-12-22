@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
@@ -33,8 +32,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,14 +40,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Chat
-import androidx.compose.material.icons.automirrored.rounded.Reply
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.outlined.EmojiEmotions
 import androidx.compose.material.icons.outlined.Photo
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material.icons.rounded.AddCircle
 import androidx.compose.material.icons.rounded.AddCircleOutline
-import androidx.compose.material.icons.rounded.Chat
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.GraphicEq
@@ -74,12 +69,10 @@ import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draganddrop.DragAndDropEvent
@@ -91,6 +84,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
@@ -109,11 +104,8 @@ import com.xxcactussell.presentation.messages.model.RecordingMode
 import com.xxcactussell.presentation.messages.model.getAvatar
 import com.xxcactussell.presentation.messages.model.getMessage
 import com.xxcactussell.presentation.messages.model.getMessageId
-import com.xxcactussell.presentation.messages.screen.MessageContent
-import com.xxcactussell.presentation.messages.screen.ReplyMarkup
 import com.xxcactussell.presentation.messages.screen.ReplyMarkupMessage
 import kotlinx.coroutines.launch
-import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class,
     ExperimentalLayoutApi::class
@@ -130,10 +122,13 @@ fun InputMessageField(
     val tooltipState = rememberTooltipState()
     val coroutineScope = rememberCoroutineScope()
     val textInteraction = remember { MutableInteractionSource() }
+    val haptic = LocalHapticFeedback.current
 
     val dropTarget = remember(onEvent) {
         object : DragAndDropTarget {
             override fun onDrop(event: DragAndDropEvent): Boolean {
+                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+
                 val dragEvent = event.toAndroidDragEvent()
                 val clipData = dragEvent.clipData
 
@@ -214,7 +209,9 @@ fun InputMessageField(
             verticalAlignment = Alignment.Bottom
         ) {
             FilledTonalIconButton(
-                { }
+                {
+                    haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                }
             ) {
                 Icon(
                     Icons.AutoMirrored.Rounded.Chat, ""
@@ -223,12 +220,20 @@ fun InputMessageField(
             TonalToggleButton(
                 modifier = Modifier.weight(1f),
                 checked = false,
-                onCheckedChange = { }
+                onCheckedChange = {
+                    if (it) {
+                        haptic.performHapticFeedback(HapticFeedbackType.ToggleOff)
+                    } else {
+                        haptic.performHapticFeedback(HapticFeedbackType.ToggleOn)
+                    }
+                }
             ) {
                 Text(localizedString("ChannelMute"))
             }
             FilledTonalIconButton(
-                { }
+                {
+                    haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                }
             ) {
                 Icon(
                     Icons.Rounded.Search, ""
@@ -275,12 +280,13 @@ fun InputMessageField(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             IconButton(
-                                { }
+                                {
+                                    haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                                }
                             ) {
                                 Icon(
                                     Icons.Rounded.EditNote,
-                                    "",
-                                    tint = MaterialTheme.colorScheme.primary
+                                    ""
                                 )
                             }
                             Column(
@@ -288,12 +294,7 @@ fun InputMessageField(
                             ) {
                                 Text(
                                     text = state.messageToReplay.getAvatar()?.title ?: "@",
-                                    style = MaterialTheme.typography.labelLargeEmphasized,
-                                    color = listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.secondary,
-                                        MaterialTheme.colorScheme.tertiary
-                                    )[abs(state.messageToReplay.getAvatar()?.chatId?.rem(3) ?: 0).toInt()]
+                                    style = MaterialTheme.typography.labelLargeEmphasized
                                 )
                                 ReplyMarkupMessage(
                                     Modifier.padding(0.dp),
@@ -307,7 +308,10 @@ fun InputMessageField(
                                 )
                             }
                             IconButton(
-                                onClick = { onEvent(MessagesEvent.ReplyToSelected(null)) }
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.Reject)
+                                    onEvent(MessagesEvent.ReplyToSelected(null))
+                                }
                             ) {
                                 Icon(
                                     Icons.Rounded.Close,
@@ -342,10 +346,13 @@ fun InputMessageField(
                                     onClick = {
                                         if (state.selectedMediaUris.isNotEmpty()) {
                                             onEvent(InputEvent.ClearAttachments())
+                                            haptic.performHapticFeedback(HapticFeedbackType.Reject)
                                         } else if (state.showAttachmentsMenu) {
                                             onEvent(InputEvent.CloseAttachmentsMenu)
+                                            haptic.performHapticFeedback(HapticFeedbackType.ToggleOff)
                                         } else {
                                             onEvent(InputEvent.OpenAttachmentsMenu)
+                                            haptic.performHapticFeedback(HapticFeedbackType.ToggleOn)
                                         }
                                     },
                                 ) {
@@ -373,8 +380,7 @@ fun InputMessageField(
                                 DropdownMenu(
                                     expanded = state.showAttachmentsMenu,
                                     onDismissRequest = { onEvent(InputEvent.CloseAttachmentsMenu) },
-                                    shape = MenuDefaults.standaloneGroupShape,
-                                    containerColor = MenuDefaults.groupVibrantContainerColor
+                                    shape = MenuDefaults.standaloneGroupShape
                                 ) {
                                     state.attachmentEntries.forEach {
                                         DropdownMenuItem(
@@ -400,7 +406,10 @@ fun InputMessageField(
                             if (isEmpty) {
                                 IconButton(
                                     modifier = Modifier.padding(vertical = 4.dp),
-                                    onClick = { onCameraClicked() }
+                                    onClick = {
+                                        onCameraClicked()
+                                        haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                                    }
                                 ) {
                                     Icon(
                                         Icons.Outlined.Photo,
@@ -416,7 +425,10 @@ fun InputMessageField(
                             if (isEmpty) {
                                 IconButton(
                                     modifier = Modifier.padding(vertical = 4.dp),
-                                    onClick = { /* TODO: Handle emoji picker */ }
+                                    onClick = {
+                                    /* TODO: Handle emoji picker */
+                                        haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                                    }
                                 ) {
                                     Icon(
                                         Icons.Outlined.EmojiEmotions,
@@ -563,7 +575,10 @@ fun InputMessageField(
                                 if (isNotEmpty) {
                                     IconButton(
                                         modifier = Modifier.padding(vertical = 4.dp),
-                                        onClick = { /* TODO: Handle emoji picker */ }
+                                        onClick = {
+                                        /* TODO: Handle emoji picker */
+                                            haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                                        }
                                     ) {
                                         Icon(
                                             Icons.Outlined.EmojiEmotions,
@@ -602,11 +617,13 @@ fun InputMessageField(
                         onClick = {
                             if (state.inputMessage.isNotBlank() || state.selectedMediaUris.isNotEmpty()) {
                                 onEvent(InputEvent.SendClicked)
+                                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                             } else if (state.recordingMode != RecordingMode.Text) {
                                 onEvent(InputEvent.SwitchRecordingMode)
                                 coroutineScope.launch {
                                     tooltipState.show()
                                 }
+                                haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
                             }
                         },
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer

@@ -3,15 +3,20 @@ package com.xxcactussell.presentation.messages.model
 import android.content.Context
 import android.net.Uri
 import com.xxcactussell.domain.chats.model.Chat
+import com.xxcactussell.domain.chats.model.ChatAction
+import com.xxcactussell.domain.chats.model.User
 import com.xxcactussell.domain.messages.model.InputMessageContent
 import com.xxcactussell.domain.messages.model.Message
+import com.xxcactussell.domain.messages.model.MessageSender
 import com.xxcactussell.domain.messages.model.ReactionType
 import com.xxcactussell.presentation.chats.model.AttachmentEntry
 import java.io.File
 
 data class MessagesUiState(
     val chat: Chat? = null,
+    val user: User? = null,
     val messages: List<MessageUiItem> = emptyList(),
+    val chatAction: ChatAction = ChatAction.Cancel,
     val isLoadingHistory: Boolean = false,
     val isSendingMessage: Boolean = false,
     val canLoadMore: Boolean = true,
@@ -26,6 +31,7 @@ data class MessagesUiState(
     val showAttachmentsMenu: Boolean = false,
     val chatStatusStringKey: String? = null,
     val wasOnline: Int = 0,
+    val messageIdWithDateShown: Long? = null,
     val messageToReplay: MessageUiItem? = null,
     val attachmentsType: String? = null
 )
@@ -44,7 +50,7 @@ sealed interface MessagesEvent {
     object ShowScrollToBottomButton : MessagesEvent
     object HideScrollToBottomButton : MessagesEvent
     data class MessageLongClicked(val messageId: Long) : MessagesEvent
-    data class MessageClicked(val messageId: Long) : MessagesEvent
+    data class MessageClicked(val messageId: Long? = null) : MessagesEvent
     data class MessageSwiped(val messageId: Long) : MessagesEvent
     data class MessageRead(val messageId: Long?) : MessagesEvent
     data class UpdateFirstVisibleItemIndex(val index: Int) : MessagesEvent

@@ -37,7 +37,8 @@ fun ReactionChip(reaction: MessageReaction, onClick: () -> Unit) {
                 FormattedTextView(
                     text = FormattedText("❓", entities),
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = textSp),
-                    maxLines = 1
+                    maxLines = 1,
+                    clickable = false
                 )
             }
         }

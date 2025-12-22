@@ -104,6 +104,8 @@ class TdClientManagerImpl @Inject constructor() : TdClientManager {
                 is TdApi.UpdateMessageSendFailed,
                 is TdApi.UpdateMessageInteractionInfo,
                 is TdApi.UpdateMessageSendSucceeded,
+                is TdApi.UpdateChatAction,
+                is TdApi.UpdateDeleteMessages,
                 is TdApi.UpdateNewMessage ->
                     _newMessagesFlow.tryEmit(update)
                 is TdApi.UpdateChatReadOutbox -> {

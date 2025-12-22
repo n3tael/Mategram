@@ -3,21 +3,26 @@ package com.xxcactussell.data.utils
 import android.util.Log
 import com.xxcactussell.data.TdClientManager
 import com.xxcactussell.data.impl.MessagesRepositoryImpl
+import com.xxcactussell.domain.chats.model.ChatAction
 import com.xxcactussell.domain.messages.model.Message
 import com.xxcactussell.domain.messages.model.MessageInteractionInfo
 import com.xxcactussell.domain.messages.model.MessageListItem
+import com.xxcactussell.domain.messages.model.MessageReplyTo
 import com.xxcactussell.domain.messages.model.getId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.drinkless.tdlib.TdApi
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.resume
 
 class ChatHistoryProcessor(
     private val chatId: Long,
@@ -31,6 +36,9 @@ class ChatHistoryProcessor(
     private val _items = MutableStateFlow<List<MessageListItem>>(emptyList())
     val items: StateFlow<List<MessageListItem>> = _items.asStateFlow()
 
+    private val _action = MutableStateFlow<ChatAction>(ChatAction.Cancel)
+    val action: StateFlow<ChatAction> = _action.asStateFlow()
+
     private val albumMessageBuffer = mutableMapOf<Long, MutableList<Message>>()
     private val albumProcessingJobs = mutableMapOf<Long, Job>()
     private val albumBufferMutex = Mutex()
@@ -41,7 +49,19 @@ class ChatHistoryProcessor(
     private var canLoadMore = true
 
     fun processNewMessage(message: Message) {
+        var message = message
         scope.launch {
+            if (message.replyTo is MessageReplyTo.Message) {
+                message = message.copy(
+                    replyTo = (message.replyTo as MessageReplyTo.Message).copy(
+                        message = getReplyMessage(
+                            (message.replyTo as MessageReplyTo.Message).chatId,
+                            (message.replyTo as MessageReplyTo.Message).messageId
+                        )
+                    )
+                )
+            }
+
             if (message.mediaAlbumId != 0L) {
                 albumBufferMutex.withLock {
                     albumMessageBuffer.getOrPut(message.mediaAlbumId) { mutableListOf() }.add(message)
@@ -82,26 +102,63 @@ class ChatHistoryProcessor(
         }
     }
 
-    fun processUpdatedMessage(oldId: Long, updatedMessage: Message) {
+    fun processDeleteMessages(messageIds: LongArray) {
+        if (messageIds.isEmpty()) return
+
+        val deleteSet = messageIds.toHashSet()
         val currentList = _items.value
-        val updatedList = currentList.map { item ->
+        val updatedList = currentList.mapNotNull { item ->
             when (item) {
                 is MessageListItem.MessageItem -> {
-                    if (item.message.id == oldId) item.copy(message = updatedMessage) else item
+                    if (deleteSet.contains(item.message.id)) null else item
                 }
                 is MessageListItem.AlbumItem -> {
-                    if (item.messages.any { it.id == oldId }) {
-                        val newMsgs = item.messages.map { if (it.id == oldId) updatedMessage else it }
-                        item.copy(messages = newMsgs)
-                    } else {
-                        item
-                    }
+                    val filteredMessages = item.messages.filterNot { deleteSet.contains(it.id) }
+                    if (filteredMessages.isEmpty()) null else item.copy(messages = filteredMessages)
                 }
             }
         }
-
         if (updatedList != currentList) {
             _items.value = updatedList
+        }
+    }
+
+    fun processUpdatedMessage(oldId: Long, updatedMessage: Message) {
+        scope.launch {
+            val currentList = _items.value
+
+            var message = updatedMessage
+
+            if (message.replyTo is MessageReplyTo.Message) {
+                message = message.copy(
+                    replyTo = (message.replyTo as MessageReplyTo.Message).copy(
+                        message = getReplyMessage(
+                            (message.replyTo as MessageReplyTo.Message).chatId,
+                            (message.replyTo as MessageReplyTo.Message).messageId
+                        )
+                    )
+                )
+            }
+
+            val updatedList = currentList.map { item ->
+                when (item) {
+                    is MessageListItem.MessageItem -> {
+                        if (item.message.id == oldId) item.copy(message = message) else item
+                    }
+                    is MessageListItem.AlbumItem -> {
+                        if (item.messages.any { it.id == oldId }) {
+                            val newMsgs = item.messages.map { if (it.id == oldId) message else it }
+                            item.copy(messages = newMsgs)
+                        } else {
+                            item
+                        }
+                    }
+                }
+            }
+
+            if (updatedList != currentList) {
+                _items.value = updatedList
+            }
         }
     }
 
@@ -205,5 +262,33 @@ class ChatHistoryProcessor(
 
     fun clear() {
         albumProcessingJobs.values.forEach { it.cancel() }
+    }
+
+    suspend fun getReplyMessage(chatId: Long, messageId: Long): Message? = suspendCancellableCoroutine { continuation ->
+        clientManager.send(TdApi.GetMessage(chatId, messageId)) { result ->
+            if (continuation.isActive) {
+                when (result.constructor) {
+                    TdApi.Message.CONSTRUCTOR -> {
+                        val tdMsg = result as TdApi.Message
+                        continuation.resume(tdMsg.toDomain())
+                    }
+                    TdApi.Error.CONSTRUCTOR -> {
+                        continuation.resume(null)
+                    }
+
+                    else -> {
+                        continuation.resume(null)
+                    }
+                }
+            }
+        }
+
+        continuation.invokeOnCancellation {
+            // TODO
+        }
+    }
+
+    fun processChatAction(chatAction: ChatAction) {
+        _action.value = chatAction
     }
 }

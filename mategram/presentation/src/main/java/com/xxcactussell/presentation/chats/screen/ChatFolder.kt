@@ -19,6 +19,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
 import com.xxcactussell.presentation.chats.model.ChatItemUiState
@@ -31,6 +33,7 @@ fun FolderScreen(
     paddingValues: PaddingValues = PaddingValues(0.dp),
     onChatClicked: ((Long) -> Unit)
 ) {
+    val haptic = LocalHapticFeedback.current
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -49,7 +52,10 @@ fun FolderScreen(
 
             ) { chatItemUiState: ChatItemUiState ->
                 ChatItem(
-                    onChatClicked = { onChatClicked(chatItemUiState.chat.id) },
+                    onChatClicked = {
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onChatClicked(chatItemUiState.chat.id)
+                                    },
                     uiState = chatItemUiState
                 )
             }

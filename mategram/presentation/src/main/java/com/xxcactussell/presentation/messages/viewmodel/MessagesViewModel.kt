@@ -34,7 +34,9 @@ import com.xxcactussell.domain.messages.model.getDate
 import com.xxcactussell.domain.messages.repository.AddReactionToMessageUseCase
 import com.xxcactussell.domain.messages.repository.BuildMessageContentUseCase
 import com.xxcactussell.domain.messages.repository.CloseChatUseCase
+import com.xxcactussell.domain.messages.repository.GetChatActionFlowUseCase
 import com.xxcactussell.domain.messages.repository.GetChatFlowUseCase
+import com.xxcactussell.domain.messages.repository.GetUserUseCase
 import com.xxcactussell.domain.messages.repository.LoadMoreHistoryUseCase
 import com.xxcactussell.domain.messages.repository.MarkMessageAsRead
 import com.xxcactussell.domain.messages.repository.ObserveLastReadOutboxMessageUseCase
@@ -98,9 +100,11 @@ class MessagesViewModel @AssistedInject constructor(
     private val removeReactionFromMessage: RemoveReactionFromMessageUseCase,
     private val cancelDownloadFileUseCase: CancelDownloadFileUseCase,
     private val workManager: WorkManager,
+    private val getUser: GetUserUseCase,
     private val markMessageAsRead: MarkMessageAsRead,
     private val observeLastReadOutboxMessage: ObserveLastReadOutboxMessageUseCase,
     private val getChatFlow: GetChatFlowUseCase,
+    private val getChatAction: GetChatActionFlowUseCase,
     private val closeChat: CloseChatUseCase,
     private val loadMoreHistory: LoadMoreHistoryUseCase,
     @Assisted private val chatId: Long
@@ -121,9 +125,15 @@ class MessagesViewModel @AssistedInject constructor(
                 val chat = openChatUseCase(chatId)
                 if (chat != null) {
                     val attachmentEntries = createAttachmentEntries(chat)
+                    val user = if (chat.type is ChatType.Private) {
+                        getUser((chat.type as ChatType.Private).id)
+                    } else {
+                        null
+                    }
                     _uiState.update {
                         it.copy(
                             chat = chat,
+                            user = user,
                             attachmentEntries = attachmentEntries,
                         )
                     }
@@ -235,6 +245,14 @@ class MessagesViewModel @AssistedInject constructor(
                 }
             }
             .launchIn(viewModelScope)
+
+        getChatAction(chatId)
+            .onEach { chatAction ->
+                _uiState.update { currentState ->
+                    currentState.copy(chatAction = chatAction)
+                }
+            }
+            .launchIn(viewModelScope)
     }
 
     override fun onCleared() {
@@ -255,7 +273,7 @@ class MessagesViewModel @AssistedInject constructor(
             is SendClicked -> sendMessage(event.content)
             is LoadMoreHistory -> loadMoreHistory(chatId)
             is DismissError -> _uiState.update { it.copy(error = null) }
-            is MessageClicked -> { /* TODO */ }
+            is MessageClicked -> { if (_uiState.value.messageIdWithDateShown == event.messageId) _uiState.update { it.copy(messageIdWithDateShown = null) } else _uiState.update { it.copy(messageIdWithDateShown = event.messageId) } }
             is MessageLongClicked -> { /* TODO */ }
             is MessageSwiped -> { /* TODO */ }
             is ShowScrollToBottomButton -> _uiState.update { it.copy(showScrollToBottomButton = true) }
@@ -310,7 +328,8 @@ class MessagesViewModel @AssistedInject constructor(
                     currentState.copy(
                         inputMessage = "",
                         selectedMediaUris = emptyList(),
-                        attachmentsType = null
+                        attachmentsType = null,
+                        messageToReplay = null
                     )
                 }
             } catch (e: Exception) {
@@ -467,7 +486,7 @@ class MessagesViewModel @AssistedInject constructor(
     }
 
     fun toggleReaction(chatId: Long, messageId: Long, reactionType: ReactionType) {
-        if (uiState.value.getMessage(messageId)?.interactionInfo?.reactions?.reactions?.firstOrNull { it.type == reactionType } != null) {
+        if (uiState.value.getMessage(messageId)?.interactionInfo?.reactions?.reactions?.firstOrNull { it.type == reactionType && it.isChosen } != null) {
             removeReactionFromMessage(chatId, messageId, reactionType)
         } else {
             addReactionToMessage(chatId, messageId, reactionType)

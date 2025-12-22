@@ -30,6 +30,32 @@ fun formatTimestampToFullDateTime(timestamp: Int): String {
 }
 
 @Composable
+fun formatTimestampToDateTime(timestamp: Int): String {
+    val locale = LocalConfiguration.current.locales.get(0)
+
+    val messageDateTime = remember(timestamp) {
+        LocalDateTime.ofInstant(
+            Instant.ofEpochSecond(timestamp.toLong()),
+            ZoneId.systemDefault()
+        )
+    }
+
+    val messageDate = messageDateTime.toLocalDate()
+    val today = remember { LocalDate.now() }
+
+    return when {
+        messageDate == today -> {
+            messageDateTime.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale))
+        }
+
+        else -> {
+            val formatter = remember(locale) { DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT, FormatStyle.SHORT).withLocale(locale) }
+            messageDateTime.format(formatter)
+        }
+    }
+}
+
+@Composable
 fun formatTimestampToDate(timestamp: Int): String {
     val locale = LocalConfiguration.current.locales.get(0)
 

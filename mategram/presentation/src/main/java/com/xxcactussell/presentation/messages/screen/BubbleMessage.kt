@@ -27,6 +27,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.xxcactussell.domain.messages.model.Message
@@ -36,8 +38,11 @@ import com.xxcactussell.presentation.messages.model.MessageUiItem
 import com.xxcactussell.presentation.messages.model.MessagesEvent
 import com.xxcactussell.presentation.messages.model.getAvatar
 import com.xxcactussell.presentation.messages.model.getChatId
+import com.xxcactussell.presentation.messages.model.getMessage
 import com.xxcactussell.presentation.messages.model.getMessageId
 import com.xxcactussell.presentation.messages.model.getReactions
+import com.xxcactussell.presentation.tools.formatTimestampToDateTime
+import java.sql.Timestamp
 import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -45,6 +50,7 @@ import kotlin.math.abs
 fun BubbleMessage(
     modifier: Modifier = Modifier,
     message: MessageUiItem,
+    isDateShown: Boolean = false,
     isUnread: Boolean,
     isOutgoing: Boolean,
     hasBubble: Boolean,
@@ -59,6 +65,7 @@ fun BubbleMessage(
     content: @Composable (() -> Unit)
 ) {
     val alignment = if (isOutgoing) Alignment.Companion.CenterEnd else Alignment.Companion.CenterStart
+    val haptic = LocalHapticFeedback.current
 
     val backgroundColor = if (!hasBubble) {
         Color.Companion.Transparent
@@ -226,6 +233,11 @@ fun BubbleMessage(
                 ) {
                     reactions.forEach {
                         ReactionChip(it) {
+                            if (it.isChosen) {
+                                haptic.performHapticFeedback(HapticFeedbackType.ToggleOff)
+                            } else {
+                                haptic.performHapticFeedback(HapticFeedbackType.ToggleOn)
+                            }
                             onEvent(MessagesEvent.ToggleReaction(
                                 message.getChatId(),
                                 message.getMessageId() ?: 0L,
@@ -234,6 +246,15 @@ fun BubbleMessage(
                         }
                     }
                 }
+            }
+
+            AnimatedVisibility(
+                isDateShown
+            ) {
+                Text(
+                    text = formatTimestampToDateTime(message.getMessage()?.date ?: 0),
+                    style = MaterialTheme.typography.bodySmallEmphasized
+                )
             }
         }
     }

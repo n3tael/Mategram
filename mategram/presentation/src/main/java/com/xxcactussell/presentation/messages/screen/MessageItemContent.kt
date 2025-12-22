@@ -17,6 +17,7 @@ import com.xxcactussell.presentation.messages.model.MessageUiItem
 fun MessageItemContent(
     modifier: Modifier = Modifier,
     message: MessageUiItem,
+    isDateShown: Boolean = false,
     topCorner: Dp,
     bottomCorner: Dp,
     needSenderName: Boolean,
@@ -54,6 +55,7 @@ fun MessageItemContent(
                 BubbleMessage(
                     modifier = modifier,
                     message = message,
+                    isDateShown = isDateShown,
                     isOutgoing = message.message.isOutgoing,
                     hasBubble = hasBubble,
                     topCorner = topCorner,
@@ -82,6 +84,7 @@ fun MessageItemContent(
             BubbleMessage(
                 modifier = modifier,
                 message = message,
+                isDateShown = isDateShown,
                 isUnread = isUnread,
                 isOutgoing = message.messages.first().message.isOutgoing,
                 hasBubble = isCaption != null || message.messages.any { it.message.content is MessageDocument },

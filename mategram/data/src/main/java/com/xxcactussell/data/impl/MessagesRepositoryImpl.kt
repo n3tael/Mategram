@@ -6,6 +6,7 @@ import com.xxcactussell.data.utils.toDomain
 import com.xxcactussell.data.utils.todata.toData
 import com.xxcactussell.data.utils.todomain.toDomain
 import com.xxcactussell.domain.chats.model.Chat
+import com.xxcactussell.domain.chats.model.ChatAction
 import com.xxcactussell.domain.chats.model.User
 import com.xxcactussell.domain.messages.model.InputMessageContent
 import com.xxcactussell.domain.messages.model.Message
@@ -64,7 +65,7 @@ class MessagesRepositoryImpl @Inject constructor(
             .onEach { updateNewMessage ->
                 when (updateNewMessage) {
                     is TdApi.UpdateNewMessage -> {
-                        val domainMsg = updateNewMessage.message.toDomain()
+                        var domainMsg = updateNewMessage.message.toDomain()
                         getProcessor(domainMsg.chatId).processNewMessage(domainMsg)
                     }
                     is TdApi.UpdateMessageSendSucceeded -> {
@@ -79,6 +80,12 @@ class MessagesRepositoryImpl @Inject constructor(
                         getProcessor(updateNewMessage.chatId).processUpdateInteractionInfo(updateNewMessage.messageId,
                             updateNewMessage.interactionInfo?.toDomain()
                         )
+                    }
+                    is TdApi.UpdateDeleteMessages -> {
+                        getProcessor(updateNewMessage.chatId).processDeleteMessages(updateNewMessage.messageIds)
+                    }
+                    is TdApi.UpdateChatAction -> {
+                        getProcessor(updateNewMessage.chatId).processChatAction(updateNewMessage.action.toDomain())
                     }
                 }
             }.launchIn(repositoryScope)
@@ -104,6 +111,10 @@ class MessagesRepositoryImpl @Inject constructor(
 
     override fun getChatFlow(chatId: Long): Flow<List<MessageListItem>> {
         return getProcessor(chatId).items
+    }
+
+    override fun getChatActionFlow(chatId: Long): Flow<ChatAction> {
+        return getProcessor(chatId).action
     }
 
     override fun loadMoreHistory(chatId: Long) {
@@ -431,3 +442,5 @@ class MessagesRepositoryImpl @Inject constructor(
         }
     }
 }
+
+

@@ -53,6 +53,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
@@ -76,6 +78,7 @@ fun ChatListContent(
     onAvatarClicked: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
     val textFieldState = rememberTextFieldState()
     val searchBarState = rememberSearchBarState()
     var toolBarExpanded by rememberSaveable { mutableStateOf(true) }
@@ -175,6 +178,11 @@ fun ChatListContent(
                                         scope.launch {
                                             pagerState.animateScrollToPage(index)
                                             foldersFiltersState.animateScrollToItem(index)
+                                        }
+                                        if (it) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.ToggleOn)
+                                        } else {
+                                            haptic.performHapticFeedback(HapticFeedbackType.ToggleOff)
                                         }
                                     },
                                     shapes =

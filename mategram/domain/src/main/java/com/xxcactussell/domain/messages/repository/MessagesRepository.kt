@@ -2,6 +2,7 @@ package com.xxcactussell.domain.messages.repository
 
 import android.net.Uri
 import com.xxcactussell.domain.chats.model.Chat
+import com.xxcactussell.domain.chats.model.ChatAction
 import com.xxcactussell.domain.chats.model.User
 import com.xxcactussell.domain.messages.model.FormattedText
 import com.xxcactussell.domain.messages.model.InputFile
@@ -46,8 +47,15 @@ interface MessagesRepository {
     fun addReactionToMessage(chatId: Long, messageId: Long, reactionType: ReactionType)
 
     fun removeReactionFromMessage(chatId: Long, messageId: Long, reactionType: ReactionType)
+    fun getChatActionFlow(chatId: Long): Flow<ChatAction>
 }
 
+
+class GetChatActionFlowUseCase @Inject constructor(
+    private val messageRepository: MessagesRepository
+) {
+    operator fun invoke(chatId: Long): Flow<ChatAction> = messageRepository.getChatActionFlow(chatId)
+}
 
 class AddReactionToMessageUseCase @Inject constructor(
     private val messageRepository: MessagesRepository
@@ -92,6 +100,14 @@ class GetChatMediaHistoryUseCase @Inject constructor(
             offset = -(limit / 2),
             limit = limit
         )
+    }
+}
+
+class GetUserUseCase @Inject constructor(
+    private val chatsRepo: MessagesRepository
+) {
+    suspend operator fun invoke(userId: Long): User? {
+        return chatsRepo.getUser(userId)
     }
 }
 

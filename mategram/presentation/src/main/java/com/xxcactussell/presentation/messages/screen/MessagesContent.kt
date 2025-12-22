@@ -9,6 +9,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Ease
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
@@ -81,15 +82,21 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onVisibilityChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.xxcactussell.domain.chats.model.ChatAction
 import com.xxcactussell.domain.chats.model.ChatType
+import com.xxcactussell.domain.chats.model.User
+import com.xxcactussell.domain.chats.model.UserType
+import com.xxcactussell.domain.messages.model.MessageSenderUser
 import com.xxcactussell.presentation.chats.model.AvatarUiState
 import com.xxcactussell.presentation.chats.screen.ChatAvatar
 import com.xxcactussell.presentation.localization.localizedString
@@ -126,6 +133,7 @@ fun MessagesContent(
     onMediaClicked: (Long) -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
 
     val sizeNewMessageButton = ButtonDefaults.MediumContainerHeight
     val lazyListState = rememberLazyListState(cacheWindow = LazyLayoutCacheWindow(0.5f, 0.5f))
@@ -215,9 +223,40 @@ fun MessagesContent(
                                 if (state.chat != null) {
                                     val key = state.chatStatusStringKey
                                     val supportingText = if (state.chat.type is ChatType.BasicGroup || state.chat.type is ChatType.Supergroup) {
-                                        localizedString(key ?: "", 1, state.chat.memberCount ?: 0)
+                                        localizedString(
+                                            key ?: "",
+                                            state.chat.memberCount?.toLong() ?: 0L,
+                                            state.chat.memberCount ?: 0
+                                        )
+                                    } else if (state.user?.type is UserType.Bot) {
+                                        localizedString(
+                                            if ((state.user.type as UserType.Bot).activeUserCount == 0) "Bot" else "BotUsers",
+                                            (state.user.type as UserType.Bot).activeUserCount,
+                                            (state.user.type as UserType.Bot).activeUserCount
+                                        )
                                     } else {
-                                        localizedString(key ?: "", 1, if (key == "LastSeenFormatted") formatTimestampToDate(state.wasOnline) else "")
+                                        val keyArgs : Pair<String, Any> = when (state.chatAction) {
+                                            ChatAction.ChoosingContact -> Pair("SelectingContact", "")
+                                            ChatAction.ChoosingLocation -> Pair("SelectingLocation", "")
+                                            ChatAction.ChoosingSticker -> Pair("ChoosingSticker", "")
+                                            ChatAction.RecordingVideo -> Pair("RecordingRound", "")
+                                            ChatAction.RecordingVideoNote -> Pair("RecordingRound", "")
+                                            ChatAction.RecordingVoiceNote -> Pair("RecordingAudio", "")
+                                            ChatAction.StartPlayingGame -> Pair("SendingGame", "")
+                                            ChatAction.Typing -> Pair("Typing", "")
+                                            ChatAction.UploadingDocument -> Pair("SendingFile", "")
+                                            ChatAction.UploadingPhoto -> Pair("SendingPhoto", "")
+                                            ChatAction.UploadingVideo -> Pair("SendingVideoStatus", "")
+                                            ChatAction.UploadingVideoNote -> Pair("RecordingRound", "")
+                                            ChatAction.UploadingVoiceNote -> Pair("RecordingAudio", "")
+                                            is ChatAction.WatchingAnimations -> Pair("EnjoyngAnimations", state.chatAction.emoji)
+                                            else -> Pair(key ?: "", if (key == "LastSeenFormatted") formatTimestampToDate(state.wasOnline) else "")
+                                        }
+                                        localizedString(
+                                            keyArgs.first,
+                                            1,
+                                            keyArgs.second
+                                        )
                                     }
                                     Text(
                                         text = supportingText,
@@ -411,26 +450,75 @@ fun MessagesContent(
                     }
 
                     val max = 0.dp
-                    val min = (-120).dp
-                    val (minPx, maxPx) = with(LocalDensity.current) { min.toPx() to max.toPx() }
+                    val min = (-140).dp
+                    val thresholdDp = (-90).dp
+
+                    val density = LocalDensity.current
+                    val (minPx, maxPx) = with(density) { min.toPx() to max.toPx() }
+                    val thresholdPx = with(density) { thresholdDp.toPx() }
+
+                    val viscosityFactor = 0.3f
+                    var rawDragInput by remember { mutableFloatStateOf(0f) }
                     val offsetPosition = remember { mutableFloatStateOf(0f) }
 
-                    val messageItemModifier = when(message.isServiceMessage() || (state.chat?.type is ChatType.Supergroup && (state.chat.type as ChatType.Supergroup).isChannel)) {
-                        false -> Modifier.draggable(
-                                    state = rememberDraggableState { delta ->
-                                        val newValue = offsetPosition.floatValue + delta
-                                        offsetPosition.floatValue = newValue.coerceIn(minPx, maxPx)
-                                    },
-                                    orientation = Orientation.Horizontal,
-                                    onDragStopped = {
-                                        if (offsetPosition.floatValue == minPx) {
-                                            onEvent(MessagesEvent.ReplyToSelected(message.getItem()))
-                                        }
-                                        offsetPosition.floatValue = 0f
+                    val offsetPositionAnimated by animateFloatAsState(
+                        offsetPosition.floatValue,
+                        spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessLow
+                        )
+                    )
+
+
+                    val messageItemModifier = when {
+                        !(state.chat?.type is ChatType.Supergroup && (state.chat.type as ChatType.Supergroup).isChannel) && !message.isServiceMessage() -> Modifier
+                            .draggable(
+                                state = rememberDraggableState { delta ->
+                                    val oldRaw = rawDragInput
+                                    val newRaw = (oldRaw + delta).coerceIn(minPx, maxPx)
+                                    rawDragInput = newRaw
+
+                                    val newVisualValue = if (newRaw > thresholdPx) {
+                                        newRaw * viscosityFactor
+                                    } else {
+                                        val visualThreshold = thresholdPx * viscosityFactor
+                                        val fraction =
+                                            (newRaw - thresholdPx) / (minPx - thresholdPx)
+                                        visualThreshold + (minPx - visualThreshold) * fraction
                                     }
-                                )
-                        true -> Modifier
-                        }
+
+                                    offsetPosition.floatValue = newVisualValue
+
+                                    val crossedThreshold =
+                                        (oldRaw > thresholdPx && newRaw <= thresholdPx) ||
+                                                (oldRaw < thresholdPx && newRaw >= thresholdPx)
+
+                                    if (crossedThreshold) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+                                    }
+                                },
+                                orientation = Orientation.Horizontal,
+                                onDragStopped = {
+                                    if (rawDragInput < thresholdPx) {
+                                        onEvent(MessagesEvent.ReplyToSelected(message.getItem()))
+                                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                                    } else {
+                                        haptic.performHapticFeedback(HapticFeedbackType.Reject)
+                                    }
+                                    offsetPosition.floatValue = 0f
+                                    rawDragInput = 0f
+                                }
+                            )
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                                onEvent(MessagesEvent.MessageClicked(message.getMessageId()))
+                            }
+                        state.chat?.type is ChatType.Supergroup && (state.chat.type as ChatType.Supergroup).isChannel && !message.isServiceMessage() -> Modifier.clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                                onEvent(MessagesEvent.MessageClicked(message.getMessageId()))
+                            }
+                        else -> Modifier
+                    }
 
                     Box(
                         modifier = messageItemModifier
@@ -468,9 +556,10 @@ fun MessagesContent(
                         MessageItemContent(
                             modifier = Modifier
                                 .offset {
-                                IntOffset(offsetPosition.floatValue.roundToInt(), 0)
-                            },
+                                    IntOffset(offsetPositionAnimated.roundToInt(), 0)
+                                },
                             message = message,
+                            isDateShown = state.messageIdWithDateShown == message.getMessageId(),
                             topCorner = topCorner,
                             bottomCorner = bottomCorner,
                             needSenderName = needSenderName,
@@ -512,7 +601,7 @@ fun MessagesContent(
                                 ) {
                                     CircularWavyProgressIndicator(
                                         progress = {
-                                            offsetPosition.floatValue / minPx
+                                            offsetPositionAnimated.coerceIn(thresholdPx * viscosityFactor, maxPx) / (thresholdPx * viscosityFactor)
                                         }
                                     )
                                     Icon(
@@ -581,7 +670,7 @@ fun MessagesContent(
                         Text(
                             text = localizedString(
                                 "NewMessages",
-                                1,
+                                state.unreadBelowCount,
                                 state.unreadBelowCount
                             ),
                             style = ButtonDefaults.textStyleFor(sizeNewMessageButton)

@@ -40,7 +40,14 @@ import com.xxcactussell.presentation.tools.FormattedTextView
 
 @Composable
 fun MessageContent(message: MessageUiItem.MessageItem, onMediaClicked: (Long) -> Unit, onEvent: (Any) -> Unit) {
-    val messageTextColor = MaterialTheme.colorScheme.onSurface
+    val isOutgoing = message.message.isOutgoing
+
+    val messageTextColor = if (isOutgoing) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    }
+
     val isSending = message.message.sendingState is MessageStatus.Pending
     val isFailed = message.message.sendingState is MessageStatus.Failed
 
