@@ -25,8 +25,8 @@ val tdLibVersion = "1.8.55"
 val now: LocalDate = LocalDate.now()
 val year = now.year
 val month = now.monthValue
-val week = now.get(WeekFields.of(Locale.getDefault()).weekOfWeekBasedYear())
-val beautifulBuildNumber = String.format("%02d%02d", month, week)
+val week = now.get(WeekFields.of(Locale.US).weekOfWeekBasedYear())
+val beautifulBuildNumber = String.format("%02d%02d", year-2000, week)
 val buildNumber = year*1000 + month*100 + week
 val fullAppVersion = "$globalVersion.$tdLibVersion.$beautifulBuildNumber"
 
