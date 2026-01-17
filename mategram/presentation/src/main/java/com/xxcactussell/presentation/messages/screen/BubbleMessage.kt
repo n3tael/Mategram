@@ -14,10 +14,6 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AccessTime
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -29,10 +25,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.xxcactussell.domain.messages.model.Message
 import com.xxcactussell.domain.messages.model.MessageStatus
+import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.chats.screen.ChatAvatar
 import com.xxcactussell.presentation.messages.model.MessageUiItem
 import com.xxcactussell.presentation.messages.model.MessagesEvent
@@ -122,13 +120,13 @@ fun BubbleMessage(
 
     val statusIcon = when(sendingState) {
         is MessageStatus.Failed -> {
-            Icons.Rounded.ErrorOutline
+            R.drawable.error_24px
         }
         is MessageStatus.Pending -> {
-            Icons.Rounded.AccessTime
+            R.drawable.timer_24px
         }
         else -> {
-            Icons.Rounded.Check
+            R.drawable.check_24px
         }
     }
 
@@ -190,7 +188,7 @@ fun BubbleMessage(
                     ) {
                         Icon(
                             modifier = Modifier.requiredSize(statusIconSize),
-                            imageVector = statusIcon,
+                            painter = painterResource(statusIcon),
                             tint = statusIconColor,
                             contentDescription = ""
                         )

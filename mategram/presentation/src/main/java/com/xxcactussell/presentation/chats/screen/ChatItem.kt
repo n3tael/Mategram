@@ -53,7 +53,7 @@ fun ChatItem(
             .clickable { onChatClicked(uiState.chat.id) },
         headlineContent = {
             Text(
-                text = uiState.chat.title,
+                text = uiState.chat.title.ifBlank { localizedString("HiddenName") },
                 overflow = TextOverflow.Ellipsis,
                 maxLines = 1
             )

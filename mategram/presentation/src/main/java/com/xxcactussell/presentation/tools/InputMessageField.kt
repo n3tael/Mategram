@@ -38,18 +38,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Chat
-import androidx.compose.material.icons.automirrored.rounded.Send
-import androidx.compose.material.icons.outlined.EmojiEmotions
-import androidx.compose.material.icons.outlined.Photo
-import androidx.compose.material.icons.outlined.Videocam
-import androidx.compose.material.icons.rounded.AddCircle
-import androidx.compose.material.icons.rounded.AddCircleOutline
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.EditNote
-import androidx.compose.material.icons.rounded.GraphicEq
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -83,10 +71,12 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -96,6 +86,7 @@ import androidx.compose.ui.unit.dp
 import com.xxcactussell.domain.chats.model.ChatMemberStatus
 import com.xxcactussell.domain.chats.model.ChatType
 import com.xxcactussell.domain.messages.model.MessageReplyTo
+import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.localization.localizedString
 import com.xxcactussell.presentation.messages.model.InputEvent
 import com.xxcactussell.presentation.messages.model.MessagesEvent
@@ -214,7 +205,7 @@ fun InputMessageField(
                 }
             ) {
                 Icon(
-                    Icons.AutoMirrored.Rounded.Chat, ""
+                    painterResource(R.drawable.chat_24px), ""
                 )
             }
             TonalToggleButton(
@@ -236,7 +227,7 @@ fun InputMessageField(
                 }
             ) {
                 Icon(
-                    Icons.Rounded.Search, ""
+                    painterResource(R.drawable.search_24px), ""
                 )
             }
         }
@@ -285,7 +276,7 @@ fun InputMessageField(
                                 }
                             ) {
                                 Icon(
-                                    Icons.Rounded.EditNote,
+                                    painterResource(R.drawable.edit_note_24px),
                                     ""
                                 )
                             }
@@ -314,7 +305,7 @@ fun InputMessageField(
                                 }
                             ) {
                                 Icon(
-                                    Icons.Rounded.Close,
+                                    painterResource(R.drawable.close_24px),
                                     contentDescription = "Close"
                                 )
                             }
@@ -361,12 +352,12 @@ fun InputMessageField(
                                         label = "AttachmentIcon"
                                     ) { hasMedia ->
                                         Icon(
-                                            imageVector = if (hasMedia) {
-                                                Icons.Rounded.Close
+                                            painter = if (hasMedia) {
+                                                painterResource(R.drawable.close_24px)
                                             } else if (state.showAttachmentsMenu) {
-                                                Icons.Rounded.AddCircle
+                                                painterResource(R.drawable.add_circle_fill_24px)
                                             } else {
-                                                Icons.Rounded.AddCircleOutline
+                                                painterResource(R.drawable.add_circle_24px)
                                             },
                                             contentDescription = if (hasMedia) {
                                                 "Cancel attachment"
@@ -391,7 +382,7 @@ fun InputMessageField(
                                             text = { Text(localizedString(it.label)) },
                                             leadingIcon = {
                                                 Icon(
-                                                    it.icon,
+                                                    painter = painterResource(it.icon),
                                                     contentDescription = it.label
                                                 )
                                             }
@@ -412,7 +403,7 @@ fun InputMessageField(
                                     }
                                 ) {
                                     Icon(
-                                        Icons.Outlined.Photo,
+                                        painterResource(R.drawable.photo_camera_24px),
                                         contentDescription = "Camera",
                                         tint = MaterialTheme.colorScheme.onPrimaryContainer
                                     )
@@ -431,7 +422,7 @@ fun InputMessageField(
                                     }
                                 ) {
                                     Icon(
-                                        Icons.Outlined.EmojiEmotions,
+                                        painterResource(R.drawable.mood_24px),
                                         contentDescription = "Emoji",
                                         tint = MaterialTheme.colorScheme.onPrimaryContainer
                                     )
@@ -581,7 +572,7 @@ fun InputMessageField(
                                         }
                                     ) {
                                         Icon(
-                                            Icons.Outlined.EmojiEmotions,
+                                            painterResource(R.drawable.mood_24px),
                                             contentDescription = "Emoji",
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -629,14 +620,14 @@ fun InputMessageField(
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer
                     ) {
 
-                        val currentIcon: ImageVector =
+                        val currentIcon: Painter =
                             if (state.inputMessage.isNotBlank() || state.selectedMediaUris.isNotEmpty()) {
-                                Icons.AutoMirrored.Rounded.Send
+                                painterResource(R.drawable.send_24px)
                             } else {
                                 when (state.recordingMode) {
-                                    is RecordingMode.Audio -> Icons.Rounded.GraphicEq
-                                    is RecordingMode.Video -> Icons.Outlined.Videocam
-                                    else -> Icons.AutoMirrored.Rounded.Send
+                                    is RecordingMode.Audio -> painterResource(R.drawable.graphic_eq_24px)
+                                    is RecordingMode.Video -> painterResource(R.drawable.video_camera_front_24px)
+                                    else -> painterResource(R.drawable.send_24px)
                                 }
                             }
 

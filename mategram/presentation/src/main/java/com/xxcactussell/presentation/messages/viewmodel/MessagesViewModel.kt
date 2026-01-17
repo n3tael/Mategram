@@ -3,14 +3,6 @@ package com.xxcactussell.presentation.messages.viewmodel
 import android.net.Uri
 import android.os.Environment
 import android.util.Log
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
-import androidx.compose.material.icons.outlined.Checklist
-import androidx.compose.material.icons.outlined.InsertPhoto
-import androidx.compose.material.icons.outlined.LocationOn
-import androidx.compose.material.icons.outlined.MusicNote
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.Poll
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingWorkPolicy
@@ -43,6 +35,7 @@ import com.xxcactussell.domain.messages.repository.ObserveLastReadOutboxMessageU
 import com.xxcactussell.domain.messages.repository.OpenChatUseCase
 import com.xxcactussell.domain.messages.repository.RemoveReactionFromMessageUseCase
 import com.xxcactussell.domain.messages.repository.SendMessageUseCase
+import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.chats.model.AttachmentEntry
 import com.xxcactussell.presentation.chats.model.AvatarUiState
 import com.xxcactussell.presentation.chats.model.ChatEffect
@@ -414,21 +407,21 @@ class MessagesViewModel @AssistedInject constructor(
         fun can(condition: Boolean) = condition || isAdmin
 
         if (can(permissions.canSendPhotos || permissions.canSendVideos)) {
-            attachmentEntries.add(AttachmentEntry(Icons.Outlined.InsertPhoto, "ChatGallery", AttachmentEvent.ChatGallery))
+            attachmentEntries.add(AttachmentEntry(R.drawable.photo_library_24px, "ChatGallery", AttachmentEvent.ChatGallery))
         }
         if (can(permissions.canSendDocuments)) {
-            attachmentEntries.add(AttachmentEntry(Icons.AutoMirrored.Outlined.InsertDriveFile, "ChatDocument", AttachmentEvent.ChatDocument))
+            attachmentEntries.add(AttachmentEntry(R.drawable.file_present_24px, "ChatDocument", AttachmentEvent.ChatDocument))
         }
         if (can(permissions.canSendPolls)) {
-            attachmentEntries.add(AttachmentEntry(Icons.Outlined.Poll, "Poll", AttachmentEvent.Poll))
-            attachmentEntries.add(AttachmentEntry(Icons.Outlined.Checklist, "Todo", AttachmentEvent.Todo))
+            attachmentEntries.add(AttachmentEntry(R.drawable.bar_chart_24px, "Poll", AttachmentEvent.Poll))
+            attachmentEntries.add(AttachmentEntry(R.drawable.checklist_24px, "Todo", AttachmentEvent.Todo))
         }
         if (can(permissions.canSendAudios)) {
-            attachmentEntries.add(AttachmentEntry(Icons.Outlined.MusicNote, "AttachMusic", AttachmentEvent.AttachMusic))
+            attachmentEntries.add(AttachmentEntry(R.drawable.music_note_2_24px, "AttachMusic", AttachmentEvent.AttachMusic))
         }
         if (can(permissions.canSendBasicMessages)) {
-            attachmentEntries.add(AttachmentEntry(Icons.Outlined.Person, "AttachContact", AttachmentEvent.AttachContact))
-            attachmentEntries.add(AttachmentEntry(Icons.Outlined.LocationOn, "ChatLocation", AttachmentEvent.ChatLocation))
+            attachmentEntries.add(AttachmentEntry(R.drawable.contact_phone_24px, "AttachContact", AttachmentEvent.AttachContact))
+            attachmentEntries.add(AttachmentEntry(R.drawable.location_on_24px, "ChatLocation", AttachmentEvent.ChatLocation))
         }
 
         if (can(permissions.canSendVoiceNotes)) recordingMode.add(RecordingMode.Audio)

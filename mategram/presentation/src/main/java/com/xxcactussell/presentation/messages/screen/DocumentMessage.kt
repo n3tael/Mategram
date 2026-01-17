@@ -15,11 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.FilePresent
-import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.Badge
 import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -39,10 +34,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.xxcactussell.domain.messages.model.MessageContent
 import com.xxcactussell.domain.messages.model.MessageDocument
+import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.LocalRootViewModel
 import com.xxcactussell.presentation.messages.model.MessageUiItem
 import com.xxcactussell.presentation.messages.model.MessagesEvent
@@ -133,12 +130,12 @@ fun DocumentMessageContent(content: MessageDocument, onEvent: (Any) -> Unit) {
                             file.local.downloadedSize.toFloat() / file.expectedSize.toFloat()
                         }
                     )
-                    Icon(Icons.Rounded.Close, "")
+                    Icon(painterResource(R.drawable.close_24px), "")
                 }
             }else if (file.local.isDownloadingCompleted) {
-                Icon(Icons.Rounded.FilePresent, "")
+                Icon(painterResource(R.drawable.file_present_24px), "")
             } else {
-                Icon(Icons.Rounded.Download, "")
+                Icon(painterResource(R.drawable.download_24px), "")
             }
         }
         Column(
@@ -157,7 +154,7 @@ fun DocumentMessageContent(content: MessageDocument, onEvent: (Any) -> Unit) {
             IconButton(
                 { }
             ) {
-                Icon(Icons.Rounded.MoreVert,"")
+                Icon(painterResource(R.drawable.more_vert_24px),"")
             }
         }
     }

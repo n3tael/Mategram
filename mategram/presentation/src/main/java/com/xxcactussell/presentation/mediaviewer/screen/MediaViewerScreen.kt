@@ -26,14 +26,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.Forward10
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Replay5
-import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -69,6 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -97,6 +90,7 @@ import com.xxcactussell.domain.messages.model.File
 import com.xxcactussell.domain.messages.model.FormattedText
 import com.xxcactussell.domain.messages.model.MessageContent
 import com.xxcactussell.domain.messages.model.MessageVideo
+import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.LocalRootViewModel
 import com.xxcactussell.presentation.LocalSharedTransitionScope
 import com.xxcactussell.presentation.mediaviewer.model.MediaPageUiState
@@ -152,7 +146,7 @@ fun MediaViewerScreen(
                         navigationIcon = {
                             IconButton(onClick = onBack) {
                                 Icon(
-                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    painterResource(R.drawable.arrow_back_24px),
                                     contentDescription = "Back",
                                     tint = Color.White
                                 )
@@ -481,9 +475,9 @@ internal fun PlayPauseButton(player: Player, modifier: Modifier = Modifier) {
             modifier = modifier.size(IconButtonDefaults.mediumContainerSize(IconButtonDefaults.IconButtonWidthOption.Wide)),
         ) {
             if (it) {
-                Icon(Icons.Rounded.PlayArrow, contentDescription = "", modifier = Modifier.size(IconButtonDefaults.mediumIconSize))
+                Icon(painterResource(R.drawable.play_arrow_24px), contentDescription = "", modifier = Modifier.size(IconButtonDefaults.mediumIconSize))
             } else {
-                Icon(Icons.Rounded.Pause, contentDescription = "", modifier = Modifier.size(IconButtonDefaults.mediumIconSize))
+                Icon(painterResource(R.drawable.pause_24px), contentDescription = "", modifier = Modifier.size(IconButtonDefaults.mediumIconSize))
             }
         }
     }
@@ -512,7 +506,7 @@ internal fun PlaybackSpeedPopUpButton(
                     border = BorderStroke(width = 2.dp, color = Color.White)
                 ) {
                     Icon(
-                        Icons.Rounded.Speed,
+                        painterResource(R.drawable.speed_24px),
                         modifier = Modifier.size(SplitButtonDefaults.LeadingIconSize),
                         contentDescription = "Localized description",
                     )
@@ -541,7 +535,7 @@ internal fun PlaybackSpeedPopUpButton(
                         label = "Trailing Icon Rotation",
                     )
                     Icon(
-                        Icons.Filled.KeyboardArrowDown,
+                        painterResource(R.drawable.keyboard_arrow_down_24px),
                         modifier =
                             Modifier.size(SplitButtonDefaults.TrailingIconSize).graphicsLayer {
                                 this.rotationZ = rotation
@@ -580,7 +574,7 @@ internal fun SeekBackButton(player: Player, modifier: Modifier = Modifier) {
         state::onClick
     ) {
         Icon(
-            Icons.Rounded.Replay5,
+            painterResource(R.drawable.replay_5_24px),
             "",
             modifier = modifier.clickable(enabled = state.isEnabled, onClick = state::onClick),
         )
@@ -596,7 +590,7 @@ internal fun SeekForwardButton(player: Player, modifier: Modifier = Modifier) {
         state::onClick
     ) {
         Icon(
-            Icons.Rounded.Forward10,
+            painterResource(R.drawable.forward_10_24px),
             "",
             modifier = modifier.clickable(enabled = state.isEnabled, onClick = state::onClick),
         )

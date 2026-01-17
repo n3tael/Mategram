@@ -4,7 +4,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import com.xxcactussell.presentation.messages.model.AttachmentEvent
 
 data class AttachmentEntry(
-    val icon: ImageVector,
+    val icon: Int,
     val label: String,
     val event: AttachmentEvent
 )

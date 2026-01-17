@@ -26,9 +26,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Backspace
-import androidx.compose.material.icons.outlined.Start
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
@@ -47,8 +44,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.localization.localizedString
 
 @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
@@ -147,7 +146,7 @@ fun NumericKeyboard(
                         isOtherPressed = actionPressedIndex != null && actionPressedIndex != 0,
                         content = {
                             Icon(
-                                Icons.AutoMirrored.Outlined.Backspace,
+                                painterResource(R.drawable.backspace_24px),
                                 modifier = Modifier.size(28.dp),
                                 contentDescription = "Backspace"
                             )
@@ -172,7 +171,7 @@ fun NumericKeyboard(
                         },
                         content = {
                             Icon(
-                                Icons.Outlined.Start,
+                                painterResource(R.drawable.start_24px),
                                 modifier = Modifier.size(28.dp),
                                 contentDescription = localizedString("Send")
                             )

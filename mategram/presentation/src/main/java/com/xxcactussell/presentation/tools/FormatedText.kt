@@ -66,6 +66,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import kotlin.math.min
 
 data class StaticEmojiData(
     val fileId: Int,
@@ -181,12 +182,12 @@ fun FormattedTextView(
             if (revealedSpoilers.size < uiState.spoilerEntities.size) {
                 val spoilerPaths =
                     remember(textLayoutResult, revealedSpoilers, uiState.spoilerEntities) {
-                        val currentTextLength = textLayoutResult?.layoutInput?.text?.length ?: 0
+                        val currentTextLength = textLayoutResult?.let { it.getLineEnd(it.lineCount - 1) } ?: 0
                         uiState.spoilerEntities
-                            .filter { it.offset !in revealedSpoilers }
+                            .filter { it.offset !in revealedSpoilers && it.offset < currentTextLength }
                             .mapNotNull { entity ->
-                                val endOffset = entity.offset + entity.length
-                                if (textLayoutResult != null && endOffset <= currentTextLength) {
+                                val endOffset = min(entity.offset + entity.length, currentTextLength)
+                                if (textLayoutResult != null && endOffset > entity.offset) {
                                     textLayoutResult!!.getPathForRange(entity.offset, endOffset)
                                 } else {
                                     null

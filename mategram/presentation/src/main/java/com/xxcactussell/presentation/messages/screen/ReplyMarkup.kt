@@ -9,23 +9,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
-import androidx.compose.material.icons.automirrored.rounded.Reply
-import androidx.compose.material.icons.rounded.CardGiftcard
-import androidx.compose.material.icons.rounded.Checklist
-import androidx.compose.material.icons.rounded.ContactPhone
-import androidx.compose.material.icons.rounded.Gif
-import androidx.compose.material.icons.rounded.LocationOn
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Photo
-import androidx.compose.material.icons.rounded.PhotoAlbum
-import androidx.compose.material.icons.rounded.PlayCircle
-import androidx.compose.material.icons.rounded.Poll
-import androidx.compose.material.icons.rounded.RecordVoiceOver
-import androidx.compose.material.icons.rounded.ShareLocation
-import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material.icons.rounded.VideoFile
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -34,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.xxcactussell.domain.messages.model.FormattedText
@@ -62,6 +46,7 @@ import com.xxcactussell.domain.messages.model.MessageVideoNote
 import com.xxcactussell.domain.messages.model.MessageVoiceNote
 import com.xxcactussell.domain.messages.model.TextEntity
 import com.xxcactussell.domain.messages.model.TextEntityTypeCustomEmoji
+import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.localization.localizedString
 import com.xxcactussell.presentation.tools.FormattedTextView
 import com.xxcactussell.presentation.tools.getServiceMessageText
@@ -96,7 +81,7 @@ fun ReplyBubble(
     ) {
         if (isOutgoing) {
             Icon(
-                Icons.AutoMirrored.Rounded.Reply,
+                painterResource(R.drawable.reply_24px),
                 "",
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(16.dp)
@@ -118,7 +103,7 @@ fun ReplyBubble(
         }
         if (!isOutgoing) {
             Icon(
-                Icons.AutoMirrored.Rounded.Reply,
+                painterResource(R.drawable.reply_24px),
                 "",
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(16.dp)
@@ -185,7 +170,7 @@ fun ReplyMarkupMessage(
                     )
                 } else {
                     Icon(
-                        Icons.Rounded.Photo,
+                        painterResource(R.drawable.photo_24px),
                         "",
                         modifier = iconModifier
                     )
@@ -224,7 +209,7 @@ fun ReplyMarkupMessage(
                     )
                 } else {
                     Icon(
-                        Icons.Rounded.Gif,
+                        painterResource(R.drawable.gif_box_24px),
                         "",
                         modifier = iconModifier
                     )
@@ -241,7 +226,7 @@ fun ReplyMarkupMessage(
                     )
                 } else {
                     Icon(
-                        Icons.Rounded.MusicNote,
+                        painterResource(R.drawable.music_note_2_24px),
                         "",
                         modifier = iconModifier
                     )
@@ -251,7 +236,7 @@ fun ReplyMarkupMessage(
         is MessageChecklist -> {
             {
                 Icon(
-                    Icons.Rounded.Checklist,
+                    painterResource(R.drawable.checklist_24px),
                     "",
                     modifier = iconModifier
                 )
@@ -260,7 +245,7 @@ fun ReplyMarkupMessage(
         is MessageContact -> {
             {
                 Icon(
-                    Icons.Rounded.ContactPhone,
+                    painterResource(R.drawable.contact_phone_24px),
                     "",
                     modifier = iconModifier
                 )
@@ -291,7 +276,7 @@ fun ReplyMarkupMessage(
                     )
                 } else {
                     Icon(
-                        Icons.AutoMirrored.Rounded.InsertDriveFile,
+                        painterResource(R.drawable.file_present_24px),
                         "",
                         modifier = iconModifier
                     )
@@ -301,7 +286,7 @@ fun ReplyMarkupMessage(
         is MessageLocation -> {
             {
                 Icon(
-                    Icons.Rounded.ShareLocation,
+                    painterResource(R.drawable.share_location_24px),
                     "",
                     modifier = iconModifier
                 )
@@ -310,7 +295,7 @@ fun ReplyMarkupMessage(
         is MessagePaidMedia -> {
             {
                 Icon(
-                    Icons.Rounded.Star,
+                    painterResource(R.drawable.star_24px),
                     "",
                     modifier = iconModifier
                 )
@@ -319,7 +304,7 @@ fun ReplyMarkupMessage(
         is MessagePoll -> {
             {
                 Icon(
-                    Icons.Rounded.Poll,
+                    painterResource(R.drawable.bar_chart_24px),
                     "",
                     modifier = iconModifier
                 )
@@ -343,7 +328,7 @@ fun ReplyMarkupMessage(
         is MessageStory -> {
             {
                 Icon(
-                    Icons.Rounded.PhotoAlbum,
+                    painterResource(R.drawable.photo_library_24px),
                     "",
                     modifier = iconModifier
                 )
@@ -352,7 +337,7 @@ fun ReplyMarkupMessage(
         is MessageUpgradedGift -> {
             {
                 Icon(
-                    Icons.Rounded.CardGiftcard,
+                    painterResource(R.drawable.featured_seasonal_and_gifts_24px),
                     "",
                     modifier = iconModifier
                 )
@@ -361,7 +346,7 @@ fun ReplyMarkupMessage(
         is MessageVenue -> {
             {
                 Icon(
-                    Icons.Rounded.LocationOn,
+                    painterResource(R.drawable.share_location_24px),
                     "",
                     modifier = iconModifier
                 )
@@ -377,7 +362,7 @@ fun ReplyMarkupMessage(
                     )
                 } else {
                     Icon(
-                        Icons.Rounded.VideoFile,
+                        painterResource(R.drawable.video_file_24px),
                         "",
                         modifier = iconModifier
                     )
@@ -394,7 +379,7 @@ fun ReplyMarkupMessage(
                     )
                 } else {
                     Icon(
-                        Icons.Rounded.PlayCircle,
+                        painterResource(R.drawable.play_circle_24px),
                         "",
                         modifier = iconModifier
                     )
@@ -404,7 +389,7 @@ fun ReplyMarkupMessage(
         is MessageVoiceNote -> {
             {
                 Icon(
-                    Icons.Rounded.RecordVoiceOver,
+                    painterResource(R.drawable.record_voice_over_24px),
                     "",
                     modifier = iconModifier
                 )

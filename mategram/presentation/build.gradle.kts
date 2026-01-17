@@ -52,8 +52,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.androidx.compose.material.icons.core)
-    implementation(libs.androidx.material.icons.extended)
     implementation(libs.libphonenumber)
     implementation(libs.lottie.compose)
     implementation(libs.accompanist.drawablepainter)

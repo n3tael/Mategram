@@ -21,11 +21,6 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.input.rememberTextFieldState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Bookmarks
-import androidx.compose.material.icons.outlined.CameraAlt
-import androidx.compose.material.icons.outlined.Contacts
-import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material3.AppBarWithSearch
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ButtonGroupDefaults
@@ -134,7 +129,7 @@ fun ChatListContent(
                             { },
 
                             ) {
-                            Icon(Icons.Outlined.CameraAlt, "Stories")
+                            Icon(painterResource(R.drawable.photo_camera_24px), "Stories")
                         }
                     },
                     actions = {
@@ -227,17 +222,17 @@ fun ChatListContent(
                 IconButton(
                     { },
                 ) {
-                    Icon(Icons.Outlined.Contacts, "Contacts")
+                    Icon(painterResource(R.drawable.contacts_24px), "Contacts")
                 }
                 IconButton(
                     { }
                 ) {
-                    Icon(Icons.Outlined.Bookmarks, "Saved messages")
+                    Icon(painterResource(R.drawable.bookmarks_24px), "Saved messages")
                 }
                 IconButton(
                     { }
                 ) {
-                    Icon(Icons.Outlined.Phone, "Phone")
+                    Icon(painterResource(R.drawable.call_24px), "Phone")
                 }
             }
         }

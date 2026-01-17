@@ -27,7 +27,7 @@ val year = now.year
 val month = now.monthValue
 val week = now.get(WeekFields.of(Locale.US).weekOfWeekBasedYear())
 val beautifulBuildNumber = String.format("%02d%02d", year-2000, week)
-val buildNumber = year*1000 + month*100 + week
+val buildNumber = year*10000 + month*100 + week
 val fullAppVersion = "$globalVersion.$tdLibVersion.$beautifulBuildNumber"
 
 extra.apply {

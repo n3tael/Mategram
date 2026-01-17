@@ -36,15 +36,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Cameraswitch
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.Videocam
-import androidx.compose.material.icons.outlined.PhotoCamera
-import androidx.compose.material.icons.outlined.PhotoLibrary
-import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -67,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -75,6 +67,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.util.Consumer
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.xxcactussell.mategram.presentation.R
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
@@ -185,11 +178,11 @@ fun CameraContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { onBackHandled() }) {
-                    Icon(Icons.Filled.Close, contentDescription = "Close", tint = Color.White)
+                    Icon(painterResource(R.drawable.close_24px), contentDescription = "Close", tint = Color.White)
                 }
 
-                IconButton(onClick = { /* Настройки яркости/вспышки */ }) {
-                    Icon(Icons.Filled.FlashOn, contentDescription = "Settings", tint = Color.White)
+                IconButton(onClick = { /* TODO Настройки яркости/вспышки */ }) {
+                    Icon(painterResource(R.drawable.flash_on_24px), contentDescription = "Settings", tint = Color.White)
                 }
             }
         }
@@ -294,7 +287,7 @@ fun BottomControlPanel(
                 colors = IconButtonDefaults.iconButtonColors(contentColor = Color.White)
             ) {
                 Icon(
-                    Icons.Outlined.PhotoLibrary,
+                    painterResource(R.drawable.photo_library_24px),
                     contentDescription = "Gallery",
                     modifier = Modifier.size(ButtonDefaults.iconSizeFor(mediumSize)),
                 )
@@ -332,15 +325,15 @@ fun BottomControlPanel(
                 border = BorderStroke(2.dp, Color.White),
                 colors = IconButtonDefaults.iconButtonColors(contentColor = Color.White)
             ) {
-                Icon(Icons.Filled.Cameraswitch, contentDescription = "Switch Camera")
+                Icon(painterResource(R.drawable.cameraswitch_24px), contentDescription = "Switch Camera")
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
         val options = listOf("Photo", "Video")
-        val unCheckedIcons = listOf(Icons.Outlined.PhotoCamera, Icons.Outlined.Videocam)
-        val checkedIcons = listOf(Icons.Filled.PhotoCamera, Icons.Filled.Videocam)
+        val unCheckedIcons = listOf(painterResource(R.drawable.photo_camera_24px), painterResource(R.drawable.videocam_24px))
+        val checkedIcons = listOf(painterResource(R.drawable.photo_camera_fill_24px), painterResource(R.drawable.videocam_fill_24px))
 
         Row(
             horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),

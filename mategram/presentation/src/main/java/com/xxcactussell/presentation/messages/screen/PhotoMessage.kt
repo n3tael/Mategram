@@ -10,10 +10,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
@@ -35,9 +31,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import com.xxcactussell.domain.messages.model.Photo
 import com.xxcactussell.domain.messages.model.Video
+import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.LocalNavAnimatedVisibilityScope
 import com.xxcactussell.presentation.LocalRootViewModel
 import com.xxcactussell.presentation.LocalSharedTransitionScope
@@ -116,7 +114,7 @@ fun PhotoMessage(
                             )
                         ) {
                             Icon(
-                                Icons.Rounded.Close,
+                                painterResource(R.drawable.close_24px),
                                 "Stop loading"
                             )
                         }
@@ -125,7 +123,7 @@ fun PhotoMessage(
                             onClick = { /*TODO*/ }
                         ) {
                             Icon(
-                                Icons.Rounded.Refresh,
+                                painterResource(R.drawable.refresh_24px),
                                 "Retry loading"
                             )
                         }
@@ -228,7 +226,7 @@ fun VideoMessage(
                             )
                         ) {
                             Icon(
-                                Icons.Rounded.Close,
+                                painterResource(R.drawable.close_24px),
                                 "Stop loading"
                             )
                         }
@@ -237,7 +235,7 @@ fun VideoMessage(
                             onClick = { /*TODO*/ }
                         ) {
                             Icon(
-                                Icons.Rounded.Refresh,
+                                painterResource(R.drawable.refresh_24px),
                                 "Retry loading"
                             )
                         }
@@ -248,7 +246,7 @@ fun VideoMessage(
                             }
                         ) {
                             Icon(
-                                Icons.Rounded.PlayArrow,
+                                painterResource(R.drawable.play_arrow_24px),
                                 "Play"
                             )
                         }

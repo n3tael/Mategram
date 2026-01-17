@@ -42,14 +42,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.layout.LazyLayoutCacheWindow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.Reply
-import androidx.compose.material.icons.filled.BrokenImage
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.VideoFile
-import androidx.compose.material.icons.rounded.ArrowDownward
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularWavyProgressIndicator
@@ -89,6 +81,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -97,6 +90,7 @@ import com.xxcactussell.domain.chats.model.ChatType
 import com.xxcactussell.domain.chats.model.User
 import com.xxcactussell.domain.chats.model.UserType
 import com.xxcactussell.domain.messages.model.MessageSenderUser
+import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.chats.model.AvatarUiState
 import com.xxcactussell.presentation.chats.screen.ChatAvatar
 import com.xxcactussell.presentation.localization.localizedString
@@ -272,14 +266,14 @@ fun MessagesContent(
                         IconButton(
                             onBackHandle,
                         ) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back")
+                            Icon(painterResource(R.drawable.arrow_back_24px), "Back")
                         }
                     },
                     actions = {
                         IconButton(
                             onBackHandle,
                         ) {
-                            Icon(Icons.Default.MoreVert, "Menu")
+                            Icon(painterResource(R.drawable.more_vert_24px), "Menu")
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -605,7 +599,7 @@ fun MessagesContent(
                                         }
                                     )
                                     Icon(
-                                        Icons.AutoMirrored.Rounded.Reply,
+                                        painterResource(R.drawable.reply_24px),
                                         "",
                                         Modifier.size(20.dp),
                                         tint = MaterialTheme.colorScheme.primary
@@ -661,7 +655,7 @@ fun MessagesContent(
                 )
                 {
                     Icon(
-                        Icons.Rounded.ArrowDownward,
+                        painterResource(R.drawable.arrow_downward_24px),
                         contentDescription = "Scroll down",
                         modifier = Modifier.size(ButtonDefaults.iconSizeFor(sizeNewMessageButton)),
                     )
@@ -732,7 +726,7 @@ fun MessagesContent(
                                         .padding(4.dp)
                                 ) {
                                     Icon(
-                                        Icons.Rounded.Close,
+                                        painterResource(R.drawable.close_24px),
                                         contentDescription = "Remove media",
                                         tint = Color.White,
                                         modifier = Modifier.size(16.dp)
@@ -801,7 +795,7 @@ fun MediaPreviewFromUri(modifier: Modifier = Modifier, model: Uri) {
             )
             if (isVideo) {
                 Icon(
-                    imageVector = Icons.Filled.VideoFile,
+                    painter = painterResource(R.drawable.video_file_24px),
                     contentDescription = "Иконка видео",
                     modifier = Modifier.size(32.dp),
                     tint = Color.White.copy(alpha = 0.8f)
@@ -809,7 +803,7 @@ fun MediaPreviewFromUri(modifier: Modifier = Modifier, model: Uri) {
             }
         } else {
             Icon(
-                imageVector = Icons.Default.BrokenImage,
+                painter = painterResource(R.drawable.broken_image_24px),
                 contentDescription = "Ошибка загрузки",
                 modifier = Modifier.size(32.dp),
                 tint = Color.Gray

@@ -7,12 +7,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.BrokenImage
-import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -29,11 +27,13 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.LocalRootViewModel
 import com.xxcactussell.presentation.chats.model.AvatarUiState
 import kotlinx.coroutines.Dispatchers
@@ -60,7 +60,7 @@ fun ChatAvatar(
 
     val initials = state?.title?.split(" ")
         ?.filter { it.isNotBlank() }?.take(2)?.joinToString("") { it.first().uppercase() }
-        ?.ifEmpty { "?" } ?: ""
+        ?.ifEmpty { "?" } ?: "💀"
 
     val avatar = state?.photo?.small
     Box {
@@ -97,24 +97,25 @@ fun ChatAvatar(
                     } else {
                         Text(
                             text = initials,
-                            color = Color.White,
+                            color = contentColorFor(avatarColor),
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
                         )
                     }
                 } else {
-                    Text(
-                        text = initials,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    )
                     if (!file.local.isDownloadingActive && !file.local.isDownloadingCompleted) {
                         LaunchedEffect(file.id) {
                             rootViewModel.downloadFile(file.id)
                         }
                     }
                 }
+            } else {
+                Text(
+                    text = initials,
+                    color = contentColorFor(avatarColor),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
             }
         }
         if (isPinned) {
@@ -127,7 +128,7 @@ fun ChatAvatar(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.PushPin,
+                    painter = painterResource(R.drawable.keep_24px),
                     contentDescription = "Pinned",
                     modifier = Modifier.size(10.dp),
                     tint = MaterialTheme.colorScheme.onPrimary

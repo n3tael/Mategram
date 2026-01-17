@@ -6,11 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Photo
-import androidx.compose.material.icons.rounded.VideoCameraBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -19,10 +14,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.xxcactussell.domain.messages.model.FormattedText
@@ -38,12 +33,13 @@ import com.xxcactussell.domain.messages.model.MessageVideo
 import com.xxcactussell.domain.messages.model.Minithumbnail
 import com.xxcactussell.domain.messages.model.TextEntity
 import com.xxcactussell.domain.messages.model.TextEntityTypeCustomEmoji
+import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.localization.localizedString
 import com.xxcactussell.presentation.tools.FormattedTextView
 
 data class MessagePreviewState(
     val text: FormattedText,
-    val icon: ImageVector? = null,
+    val icon: Painter? = null,
     val thumbnail: Minithumbnail? = null
 )
 
@@ -68,7 +64,7 @@ fun MessagePreview(message: Message) {
             }
             MessagePreviewState(
                 text = text,
-                icon = Icons.Rounded.Photo,
+                icon = painterResource(R.drawable.photo_24px),
                 thumbnail = content.photo.minithumbnail
             )
         }
@@ -84,14 +80,14 @@ fun MessagePreview(message: Message) {
             }
             MessagePreviewState(
                 text = text,
-                icon = Icons.Rounded.VideoCameraBack,
+                icon = painterResource(R.drawable.videocam_24px),
                 thumbnail = content.cover?.minithumbnail
             )
         }
         is MessageAudio -> {
             MessagePreviewState(
                 text = FormattedText("${content.audio.performer} - ${content.audio.title}"),
-                icon = Icons.Rounded.MusicNote
+                icon = painterResource(R.drawable.music_note_2_24px)
             )
         }
         is MessageAnimatedEmoji -> {
@@ -116,7 +112,7 @@ fun MessagePreview(message: Message) {
                 } else {
                     FormattedText(content.document.fileName)
                 },
-                icon = Icons.AutoMirrored.Rounded.InsertDriveFile
+                icon = painterResource(R.drawable.file_present_24px)
             )
         }
         is MessageAnimation -> {
@@ -151,7 +147,7 @@ fun MessagePreview(message: Message) {
             )
         } else if (state.icon != null) {
             Icon(
-                imageVector = state.icon,
+                painter = state.icon,
                 contentDescription = "Медиа в ответе",
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.primary
@@ -187,7 +183,7 @@ fun ByteArrayImage(
 
     if (thumbnailBitmap == null) {
         Icon(
-            Icons.Rounded.Photo,
+            painterResource(R.drawable.photo_24px),
             "",
             modifier = modifier
         )
