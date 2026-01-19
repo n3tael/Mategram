@@ -107,6 +107,7 @@ import com.xxcactussell.presentation.messages.model.isOutgoing
 import com.xxcactussell.presentation.messages.model.isServiceMessage
 import com.xxcactussell.presentation.tools.InputMessageField
 import com.xxcactussell.presentation.tools.formatTimestampToDate
+import com.xxcactussell.presentation.tools.screenStyle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -184,7 +185,7 @@ fun MessagesContent(
     }
 
     Scaffold(
-        modifier = Modifier,
+        modifier = Modifier.screenStyle(),
         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
         topBar = {
             Column {

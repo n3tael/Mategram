@@ -29,7 +29,7 @@ data object RouteSettings : NavKey
 data class RouteSettingsEnty(val page: String) : NavKey
 
 @Serializable
-data class RouteProfile(val userId: Long) : NavKey
+data class RouteProfile(val id: Long, val type: String) : NavKey
 
 @Serializable
 data class CameraRoute(val mode: Int, val chatId: Long?) : NavKey // 0 - Chat Camera, 1 - Stories Camera, 2 - Avatar Camera

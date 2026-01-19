@@ -156,7 +156,7 @@ fun CameraContent(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    Column(modifier = Modifier.fillMaxSize().background(Color.Black).screenStyle()) {
         Box(
             modifier = Modifier
                 .weight(1f)

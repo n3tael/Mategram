@@ -97,6 +97,7 @@ import com.xxcactussell.presentation.mediaviewer.model.MediaPageUiState
 import com.xxcactussell.presentation.mediaviewer.viewmodel.MediaViewerViewModel
 import com.xxcactussell.presentation.mediaviewer.viewmodel.MediaViewerViewModelFactory
 import com.xxcactussell.presentation.tools.WavyTimeline
+import com.xxcactussell.presentation.tools.screenStyle
 import me.saket.telephoto.zoomable.coil3.ZoomableAsyncImage
 import me.saket.telephoto.zoomable.rememberZoomableImageState
 import java.util.Locale
@@ -133,7 +134,7 @@ fun MediaViewerScreen(
                 enter = fadeIn(),
                 exit = fadeOut(),
                 resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds()
-            ),
+            ).screenStyle(),
             containerColor = Color.Black,
             topBar = {
                 AnimatedVisibility(
