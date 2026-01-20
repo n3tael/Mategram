@@ -1,0 +1,30 @@
+package com.xxcactussell.domain
+
+data class Story(
+    val id: Int,
+    val posterChatId: Long,
+    val posterId: MessageSender? = null,
+    val date: Int,
+    val isBeingPosted: Boolean,
+    val isBeingEdited: Boolean,
+    val isEdited: Boolean,
+    val isPostedToChatPage: Boolean,
+    val isVisibleOnlyForSelf: Boolean,
+    val canBeAddedToAlbum: Boolean,
+    val canBeDeleted: Boolean,
+    val canBeEdited: Boolean,
+    val canBeForwarded: Boolean,
+    val canBeReplied: Boolean,
+    val canToggleIsPostedToChatPage: Boolean,
+    val canGetStatistics: Boolean,
+    val canGetInteractions: Boolean,
+    val hasExpiredViewers: Boolean,
+    val repostInfo: StoryRepostInfo? = null,
+    val interactionInfo: StoryInteractionInfo? = null,
+    val chosenReactionType: ReactionType? = null,
+    val privacySettings: StoryPrivacySettings,
+    val content: StoryContent,
+    val areas: List<StoryArea>,
+    val caption: FormattedText,
+    val albumIds: IntArray
+) : Object

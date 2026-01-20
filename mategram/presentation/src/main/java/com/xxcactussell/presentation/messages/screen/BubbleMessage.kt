@@ -28,8 +28,9 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.xxcactussell.domain.messages.model.Message
-import com.xxcactussell.domain.messages.model.MessageStatus
+import com.xxcactussell.domain.Message
+import com.xxcactussell.domain.MessageSendingStateFailed
+import com.xxcactussell.domain.MessageSendingStatePending
 import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.chats.screen.ChatAvatar
 import com.xxcactussell.presentation.messages.model.MessageUiItem
@@ -40,7 +41,6 @@ import com.xxcactussell.presentation.messages.model.getMessage
 import com.xxcactussell.presentation.messages.model.getMessageId
 import com.xxcactussell.presentation.messages.model.getReactions
 import com.xxcactussell.presentation.tools.formatTimestampToDateTime
-import java.sql.Timestamp
 import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -90,10 +90,10 @@ fun BubbleMessage(
     val sendingState = when (message) {
         is MessageUiItem.MessageItem -> message.message.sendingState
         is MessageUiItem.AlbumItem -> {
-            if (message.messages.any { it.message.sendingState is MessageStatus.Failed }) {
-                message.messages.firstOrNull { it.message.sendingState is MessageStatus.Failed }?.message?.sendingState
-            } else if (message.messages.any { it.message.sendingState is MessageStatus.Pending }) {
-                message.messages.firstOrNull { it.message.sendingState is MessageStatus.Pending }?.message?.sendingState
+            if (message.messages.any { it.message.sendingState is MessageSendingStateFailed }) {
+                message.messages.firstOrNull { it.message.sendingState is MessageSendingStateFailed }?.message?.sendingState
+            } else if (message.messages.any { it.message.sendingState is MessageSendingStatePending }) {
+                message.messages.firstOrNull { it.message.sendingState is MessageSendingStatePending }?.message?.sendingState
             } else {
                 null
             }
@@ -110,7 +110,7 @@ fun BubbleMessage(
     }
 
     val statusBackgroundColor = when(sendingState) {
-        is MessageStatus.Failed -> {
+        is MessageSendingStateFailed -> {
             MaterialTheme.colorScheme.error
         }
         else -> {
@@ -119,10 +119,10 @@ fun BubbleMessage(
     }
 
     val statusIcon = when(sendingState) {
-        is MessageStatus.Failed -> {
+        is MessageSendingStateFailed -> {
             R.drawable.error_24px
         }
-        is MessageStatus.Pending -> {
+        is MessageSendingStatePending -> {
             R.drawable.timer_24px
         }
         else -> {
@@ -131,12 +131,12 @@ fun BubbleMessage(
     }
 
     val statusIconColor = when(sendingState) {
-        is MessageStatus.Failed -> MaterialTheme.colorScheme.onError
+        is MessageSendingStateFailed -> MaterialTheme.colorScheme.onError
         else -> MaterialTheme.colorScheme.primary
     }
 
     val statusIconSize = when(sendingState) {
-        is MessageStatus.Failed -> 12.dp
+        is MessageSendingStateFailed -> 12.dp
         else -> 16.dp
     }
 

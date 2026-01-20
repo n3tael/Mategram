@@ -1,7 +1,6 @@
 package com.xxcactussell.presentation.messages.screen
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
@@ -20,12 +19,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.unit.dp
-import com.xxcactussell.domain.messages.model.MessageAnimation
-import com.xxcactussell.domain.messages.model.MessageContent
-import com.xxcactussell.domain.messages.model.MessageDocument
-import com.xxcactussell.domain.messages.model.MessagePhoto
-import com.xxcactussell.domain.messages.model.MessageStatus
-import com.xxcactussell.domain.messages.model.MessageVideo
+import com.xxcactussell.domain.MessageAnimation
+import com.xxcactussell.domain.MessageDocument
+import com.xxcactussell.domain.MessagePhoto
+import com.xxcactussell.domain.MessageSendingStateFailed
+import com.xxcactussell.domain.MessageSendingStatePending
+import com.xxcactussell.domain.MessageVideo
 import com.xxcactussell.presentation.localization.localizedString
 import com.xxcactussell.presentation.messages.model.MessageUiItem
 import com.xxcactussell.presentation.tools.ColumnWidthOf
@@ -96,8 +95,8 @@ fun MessageAlbum(messages: List<MessageUiItem.MessageItem>, onMediaClicked: (Lon
                         preferredItemWidth = 256.dp,
                         itemSpacing = 2.dp
                     ) { id ->
-                        val isSending = messages[id].message.sendingState is MessageStatus.Pending
-                        val isFailed = messages[id].message.sendingState is MessageStatus.Failed
+                        val isSending = messages[id].message.sendingState is MessageSendingStatePending
+                        val isFailed = messages[id].message.sendingState is MessageSendingStateFailed
                         when (val content = messages[id].message.content) {
                             is MessagePhoto -> {
                                 PhotoMessage(

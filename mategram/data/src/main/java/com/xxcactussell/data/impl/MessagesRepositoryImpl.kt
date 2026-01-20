@@ -2,23 +2,26 @@ package com.xxcactussell.data.impl
 
 import com.xxcactussell.data.TdClientManager
 import com.xxcactussell.data.utils.ChatHistoryProcessor
-import com.xxcactussell.data.utils.toDomain
-import com.xxcactussell.data.utils.todata.toData
-import com.xxcactussell.data.utils.todomain.toDomain
-import com.xxcactussell.domain.chats.model.Chat
-import com.xxcactussell.domain.chats.model.ChatAction
-import com.xxcactussell.domain.chats.model.User
-import com.xxcactussell.domain.messages.model.InputMessageContent
-import com.xxcactussell.domain.messages.model.Message
-import com.xxcactussell.domain.messages.model.MessageListItem
-import com.xxcactussell.domain.messages.model.MessageReplyTo
-import com.xxcactussell.domain.messages.model.MessageSender
-import com.xxcactussell.domain.messages.model.MessageSenderChat
-import com.xxcactussell.domain.messages.model.MessageSenderUser
-import com.xxcactussell.domain.messages.model.MessageSource
-import com.xxcactussell.domain.messages.model.ReactionType
-import com.xxcactussell.domain.messages.model.getId
-import com.xxcactussell.domain.messages.repository.MessagesRepository
+import com.xxcactussell.data.utils.mappers.chat.toDomain
+import com.xxcactussell.data.utils.mappers.input.toData
+import com.xxcactussell.data.utils.mappers.message.toData
+import com.xxcactussell.data.utils.mappers.message.toDomain
+import com.xxcactussell.data.utils.mappers.reaction.toData
+import com.xxcactussell.data.utils.mappers.user.toDomain
+import com.xxcactussell.domain.Chat
+import com.xxcactussell.domain.ChatAction
+import com.xxcactussell.domain.InputMessageContent
+import com.xxcactussell.domain.Message
+import com.xxcactussell.domain.MessageReplyToMessage
+import com.xxcactussell.domain.MessageSender
+import com.xxcactussell.domain.MessageSenderChat
+import com.xxcactussell.domain.MessageSenderUser
+import com.xxcactussell.domain.MessageSource
+import com.xxcactussell.domain.ReactionType
+import com.xxcactussell.domain.User
+import com.xxcactussell.repositories.messages.model.MessageListItem
+import com.xxcactussell.repositories.messages.repository.MessagesRepository
+import com.xxcactussell.repositories.messages.utils.getId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,7 +31,6 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -196,11 +198,11 @@ class MessagesRepositoryImpl @Inject constructor(
         return coroutineScope {
             initialMessages.map { message ->
                 async {
-                    if (message.replyTo != null && message.replyTo is MessageReplyTo.Message) {
-                        val replyChatId = (message.replyTo as MessageReplyTo.Message).chatId
-                        val replyMessageId = (message.replyTo as MessageReplyTo.Message).messageId
+                    if (message.replyTo != null && message.replyTo is MessageReplyToMessage) {
+                        val replyChatId = (message.replyTo as MessageReplyToMessage).chatId
+                        val replyMessageId = (message.replyTo as MessageReplyToMessage).messageId
                         val loadedReply = getReplyMessage(replyChatId, replyMessageId)
-                        message.copy(replyTo = (message.replyTo as MessageReplyTo.Message).copy(message = loadedReply))
+                        message.copy(replyTo = (message.replyTo as MessageReplyToMessage).copy(message = loadedReply))
                     } else {
                         message
                     }

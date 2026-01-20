@@ -86,10 +86,10 @@ import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
 import androidx.media3.ui.compose.state.rememberSeekBackButtonState
 import androidx.media3.ui.compose.state.rememberSeekForwardButtonState
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
-import com.xxcactussell.domain.messages.model.File
-import com.xxcactussell.domain.messages.model.FormattedText
-import com.xxcactussell.domain.messages.model.MessageContent
-import com.xxcactussell.domain.messages.model.MessageVideo
+import com.xxcactussell.domain.File
+import com.xxcactussell.domain.FormattedText
+import com.xxcactussell.domain.MessageContent
+import com.xxcactussell.domain.MessageVideo
 import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.LocalRootViewModel
 import com.xxcactussell.presentation.LocalSharedTransitionScope

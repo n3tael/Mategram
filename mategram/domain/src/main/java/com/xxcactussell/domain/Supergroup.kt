@@ -1,0 +1,30 @@
+package com.xxcactussell.domain
+
+data class Supergroup(
+    val id: Long,
+    val usernames: Usernames? = null,
+    val date: Int,
+    val status: ChatMemberStatus,
+    val memberCount: Int,
+    val boostLevel: Int,
+    val hasAutomaticTranslation: Boolean,
+    val hasLinkedChat: Boolean,
+    val hasLocation: Boolean,
+    val signMessages: Boolean,
+    val showMessageSender: Boolean,
+    val joinToSendMessages: Boolean,
+    val joinByRequest: Boolean,
+    val isSlowModeEnabled: Boolean,
+    val isChannel: Boolean,
+    val isBroadcastGroup: Boolean,
+    val isForum: Boolean,
+    val isDirectMessagesGroup: Boolean,
+    val isAdministeredDirectMessagesGroup: Boolean,
+    val verificationStatus: VerificationStatus? = null,
+    val hasDirectMessagesGroup: Boolean,
+    val hasForumTabs: Boolean,
+    val restrictionInfo: RestrictionInfo? = null,
+    val paidMessageStarCount: Long,
+    val hasActiveStories: Boolean,
+    val hasUnreadActiveStories: Boolean
+) : Object

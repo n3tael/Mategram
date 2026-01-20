@@ -1,15 +1,17 @@
 package com.xxcactussell.data.impl
 
 import com.xxcactussell.data.TdClientManager
-import com.xxcactussell.data.utils.toChatFolder
-import com.xxcactussell.data.utils.toDomain
-import com.xxcactussell.data.utils.todomain.toDomain
-import com.xxcactussell.domain.chats.model.Chat
-import com.xxcactussell.domain.chats.model.ChatFolder
-import com.xxcactussell.domain.chats.model.ChatList
-import com.xxcactussell.domain.chats.model.ChatStatus
-import com.xxcactussell.domain.chats.model.User
-import com.xxcactussell.domain.chats.repository.ChatsRepository
+import com.xxcactussell.data.utils.mappers.chat.toDomain
+import com.xxcactussell.data.utils.mappers.message.toDomain
+import com.xxcactussell.data.utils.mappers.user.toDomain
+import com.xxcactussell.domain.Chat
+import com.xxcactussell.domain.ChatFolderInfo
+import com.xxcactussell.domain.ChatListArchive
+import com.xxcactussell.domain.ChatListFolder
+import com.xxcactussell.domain.ChatListMain
+import com.xxcactussell.domain.User
+import com.xxcactussell.domain.UserStatus
+import com.xxcactussell.repositories.chats.repository.ChatsRepository
 import jakarta.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,9 +34,9 @@ class ChatsRepositoryImpl @Inject constructor(
     private val pendingUpdates = MutableStateFlow(false)
     private val _chatsFlow = MutableStateFlow<List<Chat>>(emptyList())
 
-    private val _chatFolders = MutableStateFlow<List<ChatFolder>>(emptyList())
+    private val _chatFolders = MutableStateFlow<List<ChatFolderInfo>>(emptyList())
     private val _mainChatListPosition = MutableStateFlow(0)
-    private val _userStatuses = MutableStateFlow<Map<Long, ChatStatus>>(emptyMap())
+    private val _userStatuses = MutableStateFlow<Map<Long, UserStatus>>(emptyMap())
 
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val _me = MutableStateFlow<User?>(null)
@@ -94,10 +96,10 @@ class ChatsRepositoryImpl @Inject constructor(
                     val newPositions = chat.positions.toMutableList()
                     val index = newPositions.indexOfFirst {
                         when {
-                            it.list is ChatList.Main && update.position.list.constructor == TdApi.ChatListMain.CONSTRUCTOR -> true
-                            it.list is ChatList.Folder && update.position.list is TdApi.ChatListFolder ->
-                                (it.list as ChatList.Folder).id == (update.position.list as TdApi.ChatListFolder).chatFolderId
-                            it.list is ChatList.Archive && update.position.list.constructor == TdApi.ChatListArchive.CONSTRUCTOR -> true
+                            it.list is ChatListMain && update.position.list.constructor == TdApi.ChatListMain.CONSTRUCTOR -> true
+                            it.list is ChatListFolder && update.position.list is TdApi.ChatListFolder ->
+                                (it.list as ChatListFolder).chatFolderId == (update.position.list as TdApi.ChatListFolder).chatFolderId
+                            it.list is ChatListArchive && update.position.list.constructor == TdApi.ChatListArchive.CONSTRUCTOR -> true
                             else -> false
                         }
                     }
@@ -146,22 +148,21 @@ class ChatsRepositoryImpl @Inject constructor(
             }
 
             is TdApi.UpdateChatFolders -> {
-                val mainChatListPosition = update.mainChatListPosition
-                val currentAllChatsFolder = _chatFolders.value.find { it.id == -1 }
-                val unreadCountToPreserve = currentAllChatsFolder?.unreadCount ?: 0
-                val customFolders = update.chatFolders
-                    .map { it.toChatFolder() }
-                    .filter { it.id != -1 }
-                val newAllChatsFolder = ChatFolder(
-                    id = -1,
-                    unreadCount = unreadCountToPreserve
-                )
-                val finalFolders = customFolders.toMutableList().apply {
-                    add(mainChatListPosition, newAllChatsFolder)
-                }.toList()
-                _chatFolders.value = finalFolders
-                _mainChatListPosition.value = mainChatListPosition
+                _mainChatListPosition.value = update.mainChatListPosition
+                _chatFolders.update { currentFolders ->
+                    val unreadCount = currentFolders.find { it.id == -1 }?.unreadCount ?: 0
+                    val allChatsFolder = ChatFolderInfo(id = -1, unreadCount = unreadCount)
+
+                    val customFolders = update.chatFolders
+                        .map { it.toDomain() }
+                        .filter { it.id != -1 }
+
+                    customFolders.toMutableList().apply {
+                        add(update.mainChatListPosition, allChatsFolder)
+                    }.toList()
+                }
             }
+
             is TdApi.UpdateUnreadChatCount -> {
                 val targetFolderId = when (update.chatList) {
                     is TdApi.ChatListFolder -> (update.chatList as TdApi.ChatListFolder).chatFolderId
@@ -209,8 +210,8 @@ class ChatsRepositoryImpl @Inject constructor(
         clientManager.send(TdApi.LoadChats(chatList, limit))
     }
 
-    override fun observeChatStatuses(): Flow<Map<Long, ChatStatus>> = _userStatuses.asStateFlow()
+    override fun observeChatStatuses(): Flow<Map<Long, UserStatus>> = _userStatuses.asStateFlow()
     override fun observeMe(): Flow<User?> = _me.asStateFlow()
-    override fun observeChatFolders(): Flow<List<ChatFolder>> = _chatFolders.asStateFlow()
+    override fun observeChatFolders(): Flow<List<ChatFolderInfo>> = _chatFolders.asStateFlow()
     override fun observeMainChatListPosition(): Flow<Int> = _mainChatListPosition.asStateFlow()
 }

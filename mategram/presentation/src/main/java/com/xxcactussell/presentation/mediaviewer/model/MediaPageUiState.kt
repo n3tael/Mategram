@@ -1,8 +1,8 @@
 package com.xxcactussell.presentation.mediaviewer.model
 
-import com.xxcactussell.domain.messages.model.File
-import com.xxcactussell.domain.messages.model.FormattedText
-import com.xxcactussell.domain.messages.model.MessageContent
+import com.xxcactussell.domain.File
+import com.xxcactussell.domain.FormattedText
+import com.xxcactussell.domain.MessageContent
 
 sealed interface MediaPageUiState {
     data object Loading : MediaPageUiState

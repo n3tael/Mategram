@@ -72,7 +72,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -83,9 +82,11 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.xxcactussell.domain.chats.model.ChatMemberStatus
-import com.xxcactussell.domain.chats.model.ChatType
-import com.xxcactussell.domain.messages.model.MessageReplyTo
+import com.xxcactussell.domain.ChatMemberStatus
+import com.xxcactussell.domain.ChatMemberStatusAdministrator
+import com.xxcactussell.domain.ChatMemberStatusCreator
+import com.xxcactussell.domain.ChatTypeSupergroup
+import com.xxcactussell.domain.MessageReplyToMessage
 import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.localization.localizedString
 import com.xxcactussell.presentation.messages.model.InputEvent
@@ -181,7 +182,7 @@ fun InputMessageField(
         }
     }*/
 
-    if ((state.chat?.type is ChatType.Supergroup && (state.chat.type as ChatType.Supergroup).isChannel) && state.chat.myMemberStatus !is ChatMemberStatus.Creator && (state.chat.myMemberStatus !is ChatMemberStatus.Administrator || (state.chat.myMemberStatus is ChatMemberStatus.Administrator && !(state.chat.myMemberStatus as ChatMemberStatus.Administrator).rights.canPostMessages)))
+    if ((state.chat?.type is ChatTypeSupergroup && (state.chat.type as ChatTypeSupergroup).isChannel) && state.chat.myMemberStatus !is ChatMemberStatusCreator && (state.chat.myMemberStatus !is ChatMemberStatusAdministrator || (state.chat.myMemberStatus is ChatMemberStatusAdministrator && !(state.chat.myMemberStatus as ChatMemberStatusAdministrator).rights.canPostMessages)))
     {
         Row(
             Modifier
@@ -289,12 +290,12 @@ fun InputMessageField(
                                 )
                                 ReplyMarkupMessage(
                                     Modifier.padding(0.dp),
-                                    messageReplyTo = MessageReplyTo.Message(
+                                    messageReplyTo = MessageReplyToMessage(
                                         state.messageToReplay.getMessage(),
                                         chatId = 0L,
                                         messageId = 0L,
-                                        originSentDate = 0,
-                                        checkListTaskId = 0
+                                        checklistTaskId = 0,
+                                        originSendDate = 0
                                     )
                                 )
                             }
@@ -392,7 +393,7 @@ fun InputMessageField(
                             }
                         }
                         AnimatedContent(
-                            targetState = state.inputMessage.isEmpty() && (state.chat?.permissions?.canSendPhotos == true || state.chat?.permissions?.canSendVideos == true || state.chat?.myMemberStatus is ChatMemberStatus.Creator || (state.chat?.myMemberStatus is ChatMemberStatus.Administrator && (state.chat.myMemberStatus as ChatMemberStatus.Administrator).rights.canPostMessages)) && !WindowInsets.isImeVisible
+                            targetState = state.inputMessage.isEmpty() && (state.chat?.permissions?.canSendPhotos == true || state.chat?.permissions?.canSendVideos == true || state.chat?.myMemberStatus is ChatMemberStatusCreator || (state.chat?.myMemberStatus is ChatMemberStatusAdministrator && (state.chat.myMemberStatus as ChatMemberStatusAdministrator).rights.canPostMessages)) && !WindowInsets.isImeVisible
                         ) { isEmpty ->
                             if (isEmpty) {
                                 IconButton(
@@ -463,7 +464,7 @@ fun InputMessageField(
                                 ) {
                                     BasicTextField(
                                         interactionSource = textInteraction,
-                                        enabled = state.chat?.permissions?.canSendBasicMessages == true || state.chat?.myMemberStatus is ChatMemberStatus.Creator || (state.chat?.myMemberStatus is ChatMemberStatus.Administrator && (state.chat.myMemberStatus as ChatMemberStatus.Administrator).rights.canPostMessages),
+                                        enabled = state.chat?.permissions?.canSendBasicMessages == true || state.chat?.myMemberStatus is ChatMemberStatusCreator || (state.chat?.myMemberStatus is ChatMemberStatusAdministrator && (state.chat.myMemberStatus as ChatMemberStatusAdministrator).rights.canPostMessages),
                                         value = state.inputMessage,
                                         onValueChange = { onEvent(InputEvent.TextChanged(it)) },
                                         cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
@@ -499,7 +500,7 @@ fun InputMessageField(
                                             ) {
                                                 if (state.inputMessage.isEmpty()) {
                                                     Text(
-                                                        text = if (state.chat?.permissions?.canSendBasicMessages == true || state.chat?.myMemberStatus is ChatMemberStatus.Creator || (state.chat?.myMemberStatus is ChatMemberStatus.Administrator && (state.chat.myMemberStatus as ChatMemberStatus.Administrator).rights.canPostMessages)) localizedString(
+                                                        text = if (state.chat?.permissions?.canSendBasicMessages == true || state.chat?.myMemberStatus is ChatMemberStatusCreator || (state.chat?.myMemberStatus is ChatMemberStatusAdministrator && (state.chat.myMemberStatus as ChatMemberStatusAdministrator).rights.canPostMessages)) localizedString(
                                                             "Message"
                                                         ) else localizedString("PlainTextRestrictedHint"),
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant,

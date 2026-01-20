@@ -2,21 +2,20 @@ package com.xxcactussell.presentation.messages.model
 
 import android.content.Context
 import android.net.Uri
-import com.xxcactussell.domain.chats.model.Chat
-import com.xxcactussell.domain.chats.model.ChatAction
-import com.xxcactussell.domain.chats.model.User
-import com.xxcactussell.domain.messages.model.InputMessageContent
-import com.xxcactussell.domain.messages.model.Message
-import com.xxcactussell.domain.messages.model.MessageSender
-import com.xxcactussell.domain.messages.model.ReactionType
+import com.xxcactussell.domain.Chat
+import com.xxcactussell.domain.ChatAction
+import com.xxcactussell.domain.ChatActionCancel
+import com.xxcactussell.domain.InputMessageContent
+import com.xxcactussell.domain.Message
+import com.xxcactussell.domain.ReactionType
+import com.xxcactussell.domain.User
 import com.xxcactussell.presentation.chats.model.AttachmentEntry
-import java.io.File
 
 data class MessagesUiState(
     val chat: Chat? = null,
     val user: User? = null,
     val messages: List<MessageUiItem> = emptyList(),
-    val chatAction: ChatAction = ChatAction.Cancel,
+    val chatAction: ChatAction = ChatActionCancel,
     val isLoadingHistory: Boolean = false,
     val isSendingMessage: Boolean = false,
     val canLoadMore: Boolean = true,

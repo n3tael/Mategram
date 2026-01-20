@@ -3,15 +3,13 @@ package com.xxcactussell.presentation.localization
 import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
-import com.xxcactussell.domain.localization.model.LanguagePack
-import com.xxcactussell.domain.localization.model.LocalizedResource
-import com.xxcactussell.domain.localization.model.TranslationValue
-import com.xxcactussell.domain.localization.repository.GetAvailableLanguagePacksUseCase
-import com.xxcactussell.domain.localization.repository.GetLanguageIdUseCase
-import com.xxcactussell.domain.localization.repository.GetLanguageStringsUseCase
-import com.xxcactussell.domain.localization.repository.SaveLanguageIdUseCase
-import com.xxcactussell.domain.localization.repository.SynchronizeLanguageStringsUseCase
-import dagger.hilt.android.lifecycle.HiltViewModel
+import com.xxcactussell.repositories.localization.model.LanguagePack
+import com.xxcactussell.repositories.localization.model.TranslationValue
+import com.xxcactussell.repositories.localization.repository.GetAvailableLanguagePacksUseCase
+import com.xxcactussell.repositories.localization.repository.GetLanguageIdUseCase
+import com.xxcactussell.repositories.localization.repository.GetLanguageStringsUseCase
+import com.xxcactussell.repositories.localization.repository.SaveLanguageIdUseCase
+import com.xxcactussell.repositories.localization.repository.SynchronizeLanguageStringsUseCase
 import dagger.hilt.android.qualifiers.ApplicationContext
 import jakarta.inject.Inject
 import jakarta.inject.Singleton
@@ -20,12 +18,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
-import org.intellij.lang.annotations.Language
 
 @Singleton
 class LocalizationManager @Inject constructor(

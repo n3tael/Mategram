@@ -14,9 +14,9 @@ import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import com.xxcactussell.domain.files.repository.CancelDownloadFileUseCase
-import com.xxcactussell.domain.files.repository.DownloadFileUseCase
-import com.xxcactussell.domain.files.repository.ObserveFileStatusesUseCase
+import com.xxcactussell.repositories.files.repository.CancelDownloadFileUseCase
+import com.xxcactussell.repositories.files.repository.DownloadFileUseCase
+import com.xxcactussell.repositories.files.repository.ObserveFileStatusesUseCase
 import com.xxcactussell.mategram.presentation.R
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject

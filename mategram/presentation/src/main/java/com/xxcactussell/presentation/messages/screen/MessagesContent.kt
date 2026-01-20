@@ -85,11 +85,24 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import com.xxcactussell.domain.chats.model.ChatAction
-import com.xxcactussell.domain.chats.model.ChatType
-import com.xxcactussell.domain.chats.model.User
-import com.xxcactussell.domain.chats.model.UserType
-import com.xxcactussell.domain.messages.model.MessageSenderUser
+import com.xxcactussell.domain.ChatActionChoosingContact
+import com.xxcactussell.domain.ChatActionChoosingLocation
+import com.xxcactussell.domain.ChatActionChoosingSticker
+import com.xxcactussell.domain.ChatActionRecordingVideo
+import com.xxcactussell.domain.ChatActionRecordingVideoNote
+import com.xxcactussell.domain.ChatActionRecordingVoiceNote
+import com.xxcactussell.domain.ChatActionStartPlayingGame
+import com.xxcactussell.domain.ChatActionTyping
+import com.xxcactussell.domain.ChatActionUploadingDocument
+import com.xxcactussell.domain.ChatActionUploadingPhoto
+import com.xxcactussell.domain.ChatActionUploadingVideo
+import com.xxcactussell.domain.ChatActionUploadingVideoNote
+import com.xxcactussell.domain.ChatActionUploadingVoiceNote
+import com.xxcactussell.domain.ChatActionWatchingAnimations
+import com.xxcactussell.domain.ChatType
+import com.xxcactussell.domain.ChatTypeBasicGroup
+import com.xxcactussell.domain.ChatTypeSupergroup
+import com.xxcactussell.domain.UserTypeBot
 import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.chats.model.AvatarUiState
 import com.xxcactussell.presentation.chats.screen.ChatAvatar
@@ -217,34 +230,34 @@ fun MessagesContent(
                                 )
                                 if (state.chat != null) {
                                     val key = state.chatStatusStringKey
-                                    val supportingText = if (state.chat.type is ChatType.BasicGroup || state.chat.type is ChatType.Supergroup) {
+                                    val supportingText = if (state.chat.type is ChatTypeBasicGroup || state.chat.type is ChatTypeSupergroup) {
                                         localizedString(
                                             key ?: "",
                                             state.chat.memberCount?.toLong() ?: 0L,
                                             state.chat.memberCount ?: 0
                                         )
-                                    } else if (state.user?.type is UserType.Bot) {
+                                    } else if (state.user?.type is UserTypeBot) {
                                         localizedString(
-                                            if ((state.user.type as UserType.Bot).activeUserCount == 0) "Bot" else "BotUsers",
-                                            (state.user.type as UserType.Bot).activeUserCount,
-                                            (state.user.type as UserType.Bot).activeUserCount
+                                            if ((state.user.type as UserTypeBot).activeUserCount == 0) "Bot" else "BotUsers",
+                                            (state.user.type as UserTypeBot).activeUserCount,
+                                            (state.user.type as UserTypeBot).activeUserCount
                                         )
                                     } else {
                                         val keyArgs : Pair<String, Any> = when (state.chatAction) {
-                                            ChatAction.ChoosingContact -> Pair("SelectingContact", "")
-                                            ChatAction.ChoosingLocation -> Pair("SelectingLocation", "")
-                                            ChatAction.ChoosingSticker -> Pair("ChoosingSticker", "")
-                                            ChatAction.RecordingVideo -> Pair("RecordingRound", "")
-                                            ChatAction.RecordingVideoNote -> Pair("RecordingRound", "")
-                                            ChatAction.RecordingVoiceNote -> Pair("RecordingAudio", "")
-                                            ChatAction.StartPlayingGame -> Pair("SendingGame", "")
-                                            ChatAction.Typing -> Pair("Typing", "")
-                                            ChatAction.UploadingDocument -> Pair("SendingFile", "")
-                                            ChatAction.UploadingPhoto -> Pair("SendingPhoto", "")
-                                            ChatAction.UploadingVideo -> Pair("SendingVideoStatus", "")
-                                            ChatAction.UploadingVideoNote -> Pair("RecordingRound", "")
-                                            ChatAction.UploadingVoiceNote -> Pair("RecordingAudio", "")
-                                            is ChatAction.WatchingAnimations -> Pair("EnjoyngAnimations", state.chatAction.emoji)
+                                            ChatActionChoosingContact -> Pair("SelectingContact", "")
+                                            ChatActionChoosingLocation -> Pair("SelectingLocation", "")
+                                            ChatActionChoosingSticker -> Pair("ChoosingSticker", "")
+                                            ChatActionRecordingVideo -> Pair("RecordingRound", "")
+                                            ChatActionRecordingVideoNote -> Pair("RecordingRound", "")
+                                            ChatActionRecordingVoiceNote -> Pair("RecordingAudio", "")
+                                            ChatActionStartPlayingGame -> Pair("SendingGame", "")
+                                            ChatActionTyping -> Pair("Typing", "")
+                                            is ChatActionUploadingDocument -> Pair("SendingFile", "")
+                                            is ChatActionUploadingPhoto -> Pair("SendingPhoto", "")
+                                            is ChatActionUploadingVideo -> Pair("SendingVideoStatus", "")
+                                            is ChatActionUploadingVideoNote -> Pair("RecordingRound", "")
+                                            is ChatActionUploadingVoiceNote -> Pair("RecordingAudio", "")
+                                            is ChatActionWatchingAnimations -> Pair("EnjoyngAnimations", state.chatAction.emoji)
                                             else -> Pair(key ?: "", if (key == "LastSeenFormatted") formatTimestampToDate(state.wasOnline) else "")
                                         }
                                         localizedString(
@@ -386,8 +399,8 @@ fun MessagesContent(
                         }
                     } ?: 18.dp
 
-                    val needAvatar = message.getMessageSenderId() != prevPersonId && message.isOutgoing() == false && (state.chat?.type is ChatType.BasicGroup || state.chat?.type is ChatType.Supergroup && !(state.chat.type as ChatType.Supergroup).isChannel)
-                    val needSenderName = message.getMessageSenderId() != nextPersonId && message.isOutgoing() == false && (state.chat?.type is ChatType.BasicGroup || state.chat?.type is ChatType.Supergroup && !(state.chat.type as ChatType.Supergroup).isChannel)
+                    val needAvatar = message.getMessageSenderId() != prevPersonId && message.isOutgoing() == false && (state.chat?.type is ChatTypeBasicGroup || state.chat?.type is ChatTypeSupergroup && !(state.chat.type as ChatTypeSupergroup).isChannel)
+                    val needSenderName = message.getMessageSenderId() != nextPersonId && message.isOutgoing() == false && (state.chat?.type is ChatTypeBasicGroup || state.chat?.type is ChatTypeSupergroup && !(state.chat.type as ChatTypeSupergroup).isChannel)
 
                     val isHighlighted = remember(message, highlightedMessageId) {
                         val msgId = message.getMessageId()
@@ -466,7 +479,7 @@ fun MessagesContent(
 
 
                     val messageItemModifier = when {
-                        !(state.chat?.type is ChatType.Supergroup && (state.chat.type as ChatType.Supergroup).isChannel) && !message.isServiceMessage() -> Modifier
+                        !(state.chat?.type is ChatTypeSupergroup && (state.chat.type as ChatTypeSupergroup).isChannel) && !message.isServiceMessage() -> Modifier
                             .draggable(
                                 state = rememberDraggableState { delta ->
                                     val oldRaw = rawDragInput
@@ -508,7 +521,7 @@ fun MessagesContent(
                                 haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
                                 onEvent(MessagesEvent.MessageClicked(message.getMessageId()))
                             }
-                        state.chat?.type is ChatType.Supergroup && (state.chat.type as ChatType.Supergroup).isChannel && !message.isServiceMessage() -> Modifier.clickable {
+                        state.chat?.type is ChatTypeSupergroup && (state.chat.type as ChatTypeSupergroup).isChannel && !message.isServiceMessage() -> Modifier.clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
                                 onEvent(MessagesEvent.MessageClicked(message.getMessageId()))
                             }
@@ -559,7 +572,7 @@ fun MessagesContent(
                             bottomCorner = bottomCorner,
                             needSenderName = needSenderName,
                             needAvatar = needAvatar,
-                            isGroup = state.chat?.type is ChatType.BasicGroup || state.chat?.type is ChatType.Supergroup && !(state.chat.type as ChatType.Supergroup).isChannel,
+                            isGroup = state.chat?.type is ChatTypeBasicGroup || state.chat?.type is ChatTypeSupergroup && !(state.chat.type as ChatTypeSupergroup).isChannel,
                             isUnread = isUnread,
                             onMediaClicked = onMediaClicked,
                             onReplyClicked = { replyToMessageId ->

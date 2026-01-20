@@ -2,11 +2,11 @@ package com.xxcactussell.presentation.mediaviewer.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.xxcactussell.domain.messages.model.File
-import com.xxcactussell.domain.messages.model.Message
-import com.xxcactussell.domain.messages.model.MessagePhoto
-import com.xxcactussell.domain.messages.model.MessageVideo
-import com.xxcactussell.domain.messages.repository.GetChatMediaHistoryUseCase
+import com.xxcactussell.domain.File
+import com.xxcactussell.domain.Message
+import com.xxcactussell.domain.MessagePhoto
+import com.xxcactussell.domain.MessageVideo
+import com.xxcactussell.repositories.messages.repository.GetChatMediaHistoryUseCase
 import com.xxcactussell.presentation.mediaviewer.model.GalleryItem
 import com.xxcactussell.presentation.mediaviewer.model.MediaPageUiState
 import com.xxcactussell.presentation.mediaviewer.model.ViewerUiState

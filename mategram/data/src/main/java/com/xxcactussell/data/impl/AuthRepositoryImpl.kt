@@ -3,8 +3,9 @@ package com.xxcactussell.data.impl
 import android.util.Log
 import com.xxcactussell.data.TdClientManager
 import com.xxcactussell.data.TelegramCredentials
-import com.xxcactussell.domain.auth.model.AuthState
-import com.xxcactussell.domain.auth.repository.AuthRepository
+import com.xxcactussell.data.utils.mappers.auth.toDomain
+import com.xxcactussell.domain.AuthorizationState
+import com.xxcactussell.repositories.auth.repository.AuthRepository
 import jakarta.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -14,7 +15,7 @@ import org.drinkless.tdlib.TdApi.Ok
 class AuthRepositoryImpl @Inject constructor(
     private val clientManager: TdClientManager
 ) : AuthRepository {
-    override fun observeAuthState(): Flow<AuthState> {
+    override fun observeAuthState(): Flow<AuthorizationState> {
         if (clientManager.authUpdatesFlow.value is TdApi.AuthorizationStateWaitTdlibParameters) {
             setTdlibParameters()
         }
@@ -95,36 +96,7 @@ class AuthRepositoryImpl @Inject constructor(
         )
     }
 
-    private fun mapTdLibStateToDomain(tdLibState: TdApi.AuthorizationState): AuthState {
-        return when (tdLibState.constructor) {
-            TdApi.AuthorizationStateWaitPhoneNumber.CONSTRUCTOR -> {
-                AuthState.WaitPhoneNumber
-            }
-            TdApi.AuthorizationStateWaitCode.CONSTRUCTOR -> {
-                val state = tdLibState as TdApi.AuthorizationStateWaitCode
-                AuthState.WaitCode(state.codeInfo.phoneNumber, state.codeInfo.timeout)
-            }
-
-            TdApi.AuthorizationStateWaitPassword.CONSTRUCTOR -> {
-                val state = tdLibState as TdApi.AuthorizationStateWaitPassword
-                AuthState.WaitPassword(state.passwordHint, state.hasRecoveryEmailAddress)
-            }
-
-            TdApi.AuthorizationStateReady.CONSTRUCTOR -> {
-                AuthState.Ready
-            }
-
-            TdApi.AuthorizationStateWaitTdlibParameters.CONSTRUCTOR -> {
-                AuthState.Initial
-            }
-
-            TdApi.AuthorizationStateLoggingOut.CONSTRUCTOR,
-            TdApi.AuthorizationStateClosing.CONSTRUCTOR,
-            TdApi.AuthorizationStateClosed.CONSTRUCTOR -> {
-                AuthState.Error(message = "Session closed or logging out.")
-            }
-
-            else -> AuthState.Error(message = "Unknown TDLib state: ${tdLibState.constructor}")
-        }
+    private fun mapTdLibStateToDomain(tdLibState: TdApi.AuthorizationState): AuthorizationState {
+        return tdLibState.toDomain()
     }
 }

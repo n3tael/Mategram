@@ -1,10 +1,9 @@
 package com.xxcactussell.data.impl
 
 import com.xxcactussell.data.TdClientManager
-import com.xxcactussell.data.utils.toDomain
-import com.xxcactussell.data.utils.todomain.toDomain
-import com.xxcactussell.domain.messages.model.Sticker
-import com.xxcactussell.domain.root.repository.CustomEmojiStickerRepository
+import com.xxcactussell.data.utils.mappers.sticker.toDomain
+import com.xxcactussell.domain.Sticker
+import com.xxcactussell.repositories.root.repository.CustomEmojiStickerRepository
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.drinkless.tdlib.TdApi
 import javax.inject.Inject

@@ -20,19 +20,19 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.xxcactussell.domain.messages.model.FormattedText
-import com.xxcactussell.domain.messages.model.Message
-import com.xxcactussell.domain.messages.model.MessageAnimatedEmoji
-import com.xxcactussell.domain.messages.model.MessageAnimation
-import com.xxcactussell.domain.messages.model.MessageAudio
-import com.xxcactussell.domain.messages.model.MessageDocument
-import com.xxcactussell.domain.messages.model.MessagePhoto
-import com.xxcactussell.domain.messages.model.MessageSticker
-import com.xxcactussell.domain.messages.model.MessageText
-import com.xxcactussell.domain.messages.model.MessageVideo
-import com.xxcactussell.domain.messages.model.Minithumbnail
-import com.xxcactussell.domain.messages.model.TextEntity
-import com.xxcactussell.domain.messages.model.TextEntityTypeCustomEmoji
+import com.xxcactussell.domain.FormattedText
+import com.xxcactussell.domain.Message
+import com.xxcactussell.domain.MessageAnimatedEmoji
+import com.xxcactussell.domain.MessageAnimation
+import com.xxcactussell.domain.MessageAudio
+import com.xxcactussell.domain.MessageDocument
+import com.xxcactussell.domain.MessagePhoto
+import com.xxcactussell.domain.MessageSticker
+import com.xxcactussell.domain.MessageText
+import com.xxcactussell.domain.MessageVideo
+import com.xxcactussell.domain.Minithumbnail
+import com.xxcactussell.domain.TextEntity
+import com.xxcactussell.domain.TextEntityTypeCustomEmoji
 import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.localization.localizedString
 import com.xxcactussell.presentation.tools.FormattedTextView
@@ -92,9 +92,13 @@ fun MessagePreview(message: Message) {
         }
         is MessageAnimatedEmoji -> {
             val entities = if (content.animatedEmoji.sticker != null) {
-                listOf(TextEntity(0,1, TextEntityTypeCustomEmoji(
-                    content.animatedEmoji.sticker!!.id
-                )))
+                listOf(
+                    TextEntity(
+                        0, 1, TextEntityTypeCustomEmoji(
+                            content.animatedEmoji.sticker!!.id
+                        )
+                    )
+                )
             } else emptyList()
             MessagePreviewState(
                 text = FormattedText(content.emoji, entities)
@@ -139,7 +143,7 @@ fun MessagePreview(message: Message) {
         }
         if(state.thumbnail?.data != null) {
             ByteArrayImage(
-                imageData = state.thumbnail.data!!,
+                imageData = state.thumbnail.data,
                 contentDescription = "Медиа в ответе",
                 modifier = Modifier
                     .size(16.dp)

@@ -3,14 +3,14 @@ package com.xxcactussell.presentation.messages.screen
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
-import com.xxcactussell.domain.messages.model.MessageAnimatedEmoji
-import com.xxcactussell.domain.messages.model.MessageAnimation
-import com.xxcactussell.domain.messages.model.MessageDice
-import com.xxcactussell.domain.messages.model.MessageDocument
-import com.xxcactussell.domain.messages.model.MessagePhoto
-import com.xxcactussell.domain.messages.model.MessageSticker
-import com.xxcactussell.domain.messages.model.MessageText
-import com.xxcactussell.domain.messages.model.MessageVideo
+import com.xxcactussell.domain.MessageAnimatedEmoji
+import com.xxcactussell.domain.MessageAnimation
+import com.xxcactussell.domain.MessageDice
+import com.xxcactussell.domain.MessageDocument
+import com.xxcactussell.domain.MessagePhoto
+import com.xxcactussell.domain.MessageSticker
+import com.xxcactussell.domain.MessageText
+import com.xxcactussell.domain.MessageVideo
 import com.xxcactussell.presentation.messages.model.MessageUiItem
 
 @Composable

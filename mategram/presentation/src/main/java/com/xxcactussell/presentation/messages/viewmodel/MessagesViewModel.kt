@@ -9,32 +9,44 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
-import com.xxcactussell.domain.chats.model.Chat
-import com.xxcactussell.domain.chats.model.ChatMemberStatus
-import com.xxcactussell.domain.chats.model.ChatStatus
-import com.xxcactussell.domain.chats.model.ChatType
-import com.xxcactussell.domain.chats.model.User
-import com.xxcactussell.domain.chats.model.toChatPhoto
-import com.xxcactussell.domain.chats.model.toStringKey
-import com.xxcactussell.domain.chats.repository.ObserveChatStatusesUseCase
-import com.xxcactussell.domain.files.repository.CancelDownloadFileUseCase
-import com.xxcactussell.domain.messages.model.InputMessageContent
-import com.xxcactussell.domain.messages.model.MessageListItem
-import com.xxcactussell.domain.messages.model.MessageSource
-import com.xxcactussell.domain.messages.model.ReactionType
-import com.xxcactussell.domain.messages.model.getDate
-import com.xxcactussell.domain.messages.repository.AddReactionToMessageUseCase
-import com.xxcactussell.domain.messages.repository.BuildMessageContentUseCase
-import com.xxcactussell.domain.messages.repository.CloseChatUseCase
-import com.xxcactussell.domain.messages.repository.GetChatActionFlowUseCase
-import com.xxcactussell.domain.messages.repository.GetChatFlowUseCase
-import com.xxcactussell.domain.messages.repository.GetUserUseCase
-import com.xxcactussell.domain.messages.repository.LoadMoreHistoryUseCase
-import com.xxcactussell.domain.messages.repository.MarkMessageAsRead
-import com.xxcactussell.domain.messages.repository.ObserveLastReadOutboxMessageUseCase
-import com.xxcactussell.domain.messages.repository.OpenChatUseCase
-import com.xxcactussell.domain.messages.repository.RemoveReactionFromMessageUseCase
-import com.xxcactussell.domain.messages.repository.SendMessageUseCase
+import com.xxcactussell.domain.Chat
+import com.xxcactussell.domain.ChatMemberStatusAdministrator
+import com.xxcactussell.domain.ChatMemberStatusCreator
+import com.xxcactussell.domain.ChatType
+import com.xxcactussell.domain.ChatTypeBasicGroup
+import com.xxcactussell.domain.ChatTypePrivate
+import com.xxcactussell.domain.ChatTypeSecret
+import com.xxcactussell.domain.ChatTypeSupergroup
+import com.xxcactussell.domain.InputMessageContent
+import com.xxcactussell.domain.MessageSource
+import com.xxcactussell.domain.MessageSourceChatHistory
+import com.xxcactussell.domain.ReactionType
+import com.xxcactussell.domain.User
+import com.xxcactussell.domain.UserStatus
+import com.xxcactussell.domain.UserStatusEmpty
+import com.xxcactussell.domain.UserStatusLastMonth
+import com.xxcactussell.domain.UserStatusLastWeek
+import com.xxcactussell.domain.UserStatusOffline
+import com.xxcactussell.domain.UserStatusOnline
+import com.xxcactussell.domain.UserStatusRecently
+import com.xxcactussell.domain.toChatPhotoInfo
+import com.xxcactussell.repositories.chats.model.ChatStatus
+import com.xxcactussell.repositories.chats.repository.ObserveChatStatusesUseCase
+import com.xxcactussell.repositories.files.repository.CancelDownloadFileUseCase
+import com.xxcactussell.repositories.messages.model.MessageListItem
+import com.xxcactussell.repositories.messages.model.getDate
+import com.xxcactussell.repositories.messages.repository.AddReactionToMessageUseCase
+import com.xxcactussell.repositories.messages.repository.BuildMessageContentUseCase
+import com.xxcactussell.repositories.messages.repository.CloseChatUseCase
+import com.xxcactussell.repositories.messages.repository.GetChatActionFlowUseCase
+import com.xxcactussell.repositories.messages.repository.GetChatFlowUseCase
+import com.xxcactussell.repositories.messages.repository.GetUserUseCase
+import com.xxcactussell.repositories.messages.repository.LoadMoreHistoryUseCase
+import com.xxcactussell.repositories.messages.repository.MarkMessageAsRead
+import com.xxcactussell.repositories.messages.repository.ObserveLastReadOutboxMessageUseCase
+import com.xxcactussell.repositories.messages.repository.OpenChatUseCase
+import com.xxcactussell.repositories.messages.repository.RemoveReactionFromMessageUseCase
+import com.xxcactussell.repositories.messages.repository.SendMessageUseCase
 import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.chats.model.AttachmentEntry
 import com.xxcactussell.presentation.chats.model.AvatarUiState
@@ -118,8 +130,8 @@ class MessagesViewModel @AssistedInject constructor(
                 val chat = openChatUseCase(chatId)
                 if (chat != null) {
                     val attachmentEntries = createAttachmentEntries(chat)
-                    val user = if (chat.type is ChatType.Private) {
-                        getUser((chat.type as ChatType.Private).id)
+                    val user = if (chat.type is ChatTypePrivate) {
+                        getUser((chat.type as ChatTypePrivate).userId)
                     } else {
                         null
                     }
@@ -214,10 +226,10 @@ class MessagesViewModel @AssistedInject constructor(
 
     private fun setupChatStatusObserver(chat: Chat) {
         when (chat.type) {
-            is ChatType.Secret, is ChatType.Private -> observeStatus()
-            is ChatType.BasicGroup -> _uiState.update { it.copy(chatStatusStringKey = "Members") }
-            is ChatType.Supergroup -> _uiState.update {
-                it.copy(chatStatusStringKey = if ((chat.type as ChatType.Supergroup).isChannel) "Subscribers" else "Members")
+            is ChatTypeSecret, is ChatTypePrivate -> observeStatus()
+            is ChatTypeBasicGroup -> _uiState.update { it.copy(chatStatusStringKey = "Members") }
+            is ChatTypeSupergroup -> _uiState.update {
+                it.copy(chatStatusStringKey = if ((chat.type as ChatTypeSupergroup).isChannel) "Subscribers" else "Members")
             }
         }
     }
@@ -229,9 +241,16 @@ class MessagesViewModel @AssistedInject constructor(
                 val chatStatus = status[chatId]
                 if (chatStatus != null) {
                     _uiState.update {
-                        val wasOnline = if (chatStatus is ChatStatus.Offline) chatStatus.wasOnline else 0
+                        val wasOnline = if (chatStatus is UserStatusOffline) chatStatus.wasOnline else 0
                         it.copy(
-                            chatStatusStringKey = chatStatus.toStringKey(),
+                            chatStatusStringKey = when(chatStatus) {
+                                is UserStatusEmpty -> "ALongTimeAgo"
+                                is UserStatusLastMonth -> "WithinAMonth"
+                                is UserStatusLastWeek -> "WithinAWeek"
+                                is UserStatusOffline -> "LastSeenFormatted"
+                                is UserStatusOnline -> "Online"
+                                is UserStatusRecently -> "Lately"
+                            },
                             wasOnline = wasOnline
                         )
                     }
@@ -286,7 +305,7 @@ class MessagesViewModel @AssistedInject constructor(
 
     private fun handleMessageRead(messageId: Long?) {
         if (messageId != null && _uiState.value.chat?.id != null) {
-            markMessageAsRead(_uiState.value.chat!!.id, messageId, MessageSource.ChatHistory)
+            markMessageAsRead(_uiState.value.chat!!.id, messageId, MessageSourceChatHistory)
             _uiState.update { currentState ->
                 val currentChat = currentState.chat
                 if (currentChat != null && messageId > currentChat.lastReadInboxMessageId) {
@@ -393,7 +412,7 @@ class MessagesViewModel @AssistedInject constructor(
         if (sender == null) return null
         return when(sender) {
             is Chat -> AvatarUiState(sender.id, sender.photo, sender.title)
-            is User -> AvatarUiState(sender.id, sender.profilePhoto?.toChatPhoto(), "${sender.firstName} ${sender.lastName}")
+            is User -> AvatarUiState(sender.id, sender.profilePhoto?.toChatPhotoInfo(), "${sender.firstName} ${sender.lastName}")
             else -> null
         }
     }
@@ -402,7 +421,7 @@ class MessagesViewModel @AssistedInject constructor(
         val attachmentEntries = mutableListOf<AttachmentEntry>()
         val recordingMode = mutableListOf<RecordingMode>()
         val permissions = chat.permissions
-        val isAdmin = chat.myMemberStatus is ChatMemberStatus.Creator || (chat.myMemberStatus is ChatMemberStatus.Administrator && (chat.myMemberStatus as ChatMemberStatus.Administrator).rights.canPostMessages)
+        val isAdmin = chat.myMemberStatus is ChatMemberStatusCreator || (chat.myMemberStatus is ChatMemberStatusAdministrator && (chat.myMemberStatus as ChatMemberStatusAdministrator).rights.canPostMessages)
 
         fun can(condition: Boolean) = condition || isAdmin
 

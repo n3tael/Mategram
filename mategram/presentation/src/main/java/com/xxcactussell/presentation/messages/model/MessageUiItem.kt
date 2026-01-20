@@ -1,36 +1,36 @@
 package com.xxcactussell.presentation.messages.model
 
-import com.xxcactussell.domain.messages.model.Message
-import com.xxcactussell.domain.messages.model.MessageAnimatedEmoji
-import com.xxcactussell.domain.messages.model.MessageAnimation
-import com.xxcactussell.domain.messages.model.MessageAudio
-import com.xxcactussell.domain.messages.model.MessageChecklist
-import com.xxcactussell.domain.messages.model.MessageContact
-import com.xxcactussell.domain.messages.model.MessageDice
-import com.xxcactussell.domain.messages.model.MessageDocument
-import com.xxcactussell.domain.messages.model.MessageExpiredPhoto
-import com.xxcactussell.domain.messages.model.MessageExpiredVideo
-import com.xxcactussell.domain.messages.model.MessageExpiredVideoNote
-import com.xxcactussell.domain.messages.model.MessageExpiredVoiceNote
-import com.xxcactussell.domain.messages.model.MessageGame
-import com.xxcactussell.domain.messages.model.MessageGameScore
-import com.xxcactussell.domain.messages.model.MessageGift
-import com.xxcactussell.domain.messages.model.MessageInvoice
-import com.xxcactussell.domain.messages.model.MessageLocation
-import com.xxcactussell.domain.messages.model.MessagePaidMedia
-import com.xxcactussell.domain.messages.model.MessagePhoto
-import com.xxcactussell.domain.messages.model.MessagePoll
-import com.xxcactussell.domain.messages.model.MessageReaction
-import com.xxcactussell.domain.messages.model.MessageReplyTo
-import com.xxcactussell.domain.messages.model.MessageSticker
-import com.xxcactussell.domain.messages.model.MessageStory
-import com.xxcactussell.domain.messages.model.MessageText
-import com.xxcactussell.domain.messages.model.MessageVenue
-import com.xxcactussell.domain.messages.model.MessageVideo
-import com.xxcactussell.domain.messages.model.MessageVideoNote
-import com.xxcactussell.domain.messages.model.MessageVoiceNote
-import com.xxcactussell.domain.messages.model.getId
+import com.xxcactussell.domain.Message
+import com.xxcactussell.domain.MessageAnimatedEmoji
+import com.xxcactussell.domain.MessageAnimation
+import com.xxcactussell.domain.MessageAudio
+import com.xxcactussell.domain.MessageChecklist
+import com.xxcactussell.domain.MessageContact
+import com.xxcactussell.domain.MessageDice
+import com.xxcactussell.domain.MessageDocument
+import com.xxcactussell.domain.MessageExpiredPhoto
+import com.xxcactussell.domain.MessageExpiredVideo
+import com.xxcactussell.domain.MessageExpiredVideoNote
+import com.xxcactussell.domain.MessageExpiredVoiceNote
+import com.xxcactussell.domain.MessageGame
+import com.xxcactussell.domain.MessageGameScore
+import com.xxcactussell.domain.MessageGift
+import com.xxcactussell.domain.MessageInvoice
+import com.xxcactussell.domain.MessageLocation
+import com.xxcactussell.domain.MessagePaidMedia
+import com.xxcactussell.domain.MessagePhoto
+import com.xxcactussell.domain.MessagePoll
+import com.xxcactussell.domain.MessageReaction
+import com.xxcactussell.domain.MessageReplyTo
+import com.xxcactussell.domain.MessageSticker
+import com.xxcactussell.domain.MessageStory
+import com.xxcactussell.domain.MessageText
+import com.xxcactussell.domain.MessageVenue
+import com.xxcactussell.domain.MessageVideo
+import com.xxcactussell.domain.MessageVideoNote
+import com.xxcactussell.domain.MessageVoiceNote
 import com.xxcactussell.presentation.chats.model.AvatarUiState
+import com.xxcactussell.repositories.messages.utils.getId
 
 sealed interface MessageUiItem {
     val key: Any
@@ -173,7 +173,8 @@ fun MessageUiItem.isServiceMessage() : Boolean {
                 is MessageVenue,
                 is MessageVideo,
                 is MessageVideoNote,
-                is MessageVoiceNote -> false
+                is MessageVoiceNote
+                    -> false
                 else -> true
             }
         }

@@ -1,0 +1,3 @@
+package com.xxcactussell.domain
+
+object NotificationSettingsScopeChannelChats : NotificationSettingsScope

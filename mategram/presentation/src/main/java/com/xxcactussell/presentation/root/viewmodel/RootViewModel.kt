@@ -2,13 +2,13 @@ package com.xxcactussell.presentation.root.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.xxcactussell.domain.files.repository.AddFileToDownloadsUseCase
-import com.xxcactussell.domain.files.repository.DownloadFileUseCase
-import com.xxcactussell.domain.files.repository.ObserveFileStatusesUseCase
-import com.xxcactussell.domain.messages.model.File
-import com.xxcactussell.domain.messages.model.Sticker
-import com.xxcactussell.domain.root.repository.GetCustomEmojiStickerUseCase
+import com.xxcactussell.domain.File
+import com.xxcactussell.domain.Sticker
 import com.xxcactussell.presentation.localization.LocalizationManager
+import com.xxcactussell.repositories.files.repository.AddFileToDownloadsUseCase
+import com.xxcactussell.repositories.files.repository.DownloadFileUseCase
+import com.xxcactussell.repositories.files.repository.ObserveFileStatusesUseCase
+import com.xxcactussell.repositories.root.repository.GetCustomEmojiStickerUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow

@@ -37,9 +37,8 @@ import androidx.media3.ui.PlayerView
 import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.decode.ImageDecoderDecoder
-import com.xxcactussell.domain.messages.model.Animation
-import com.xxcactussell.domain.messages.model.MessageAnimation
-import com.xxcactussell.domain.messages.model.MessageContent
+import com.xxcactussell.domain.Animation
+import com.xxcactussell.domain.MessageAnimation
 import com.xxcactussell.presentation.LocalRootViewModel
 import com.xxcactussell.presentation.messages.model.MessageUiItem
 import com.xxcactussell.presentation.tools.ColumnWidthOf

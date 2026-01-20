@@ -1,0 +1,31 @@
+package com.xxcactussell.domain
+
+data class User(
+    val id: Long,
+    val firstName: String,
+    val lastName: String,
+    val usernames: Usernames? = null,
+    val phoneNumber: String,
+    val status: UserStatus,
+    val profilePhoto: ProfilePhoto? = null,
+    val accentColorId: Int,
+    val backgroundCustomEmojiId: Long,
+    val profileAccentColorId: Int,
+    val profileBackgroundCustomEmojiId: Long,
+    val emojiStatus: EmojiStatus? = null,
+    val isContact: Boolean,
+    val isMutualContact: Boolean,
+    val isCloseFriend: Boolean,
+    val verificationStatus: VerificationStatus? = null,
+    val isPremium: Boolean,
+    val isSupport: Boolean,
+    val restrictionInfo: RestrictionInfo? = null,
+    val hasActiveStories: Boolean,
+    val hasUnreadActiveStories: Boolean,
+    val restrictsNewChats: Boolean,
+    val paidMessageStarCount: Long,
+    val haveAccess: Boolean,
+    val type: UserType,
+    val languageCode: String,
+    val addedToAttachmentMenu: Boolean
+) : Object

@@ -2,7 +2,7 @@ package com.xxcactussell.presentation.localization
 
 import android.content.Context
 import android.icu.text.PluralRules
-import com.xxcactussell.domain.localization.model.TranslationValue
+import com.xxcactussell.repositories.localization.model.TranslationValue
 
 object PluralRulesResolver {
     fun getPluralForm(

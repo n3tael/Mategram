@@ -21,18 +21,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.xxcactussell.domain.messages.model.MessageAnimatedEmoji
-import com.xxcactussell.domain.messages.model.MessageAnimation
-import com.xxcactussell.domain.messages.model.MessageDocument
-import com.xxcactussell.domain.messages.model.MessagePhoto
-import com.xxcactussell.domain.messages.model.MessageStatus
-import com.xxcactussell.domain.messages.model.MessageSticker
-import com.xxcactussell.domain.messages.model.MessageText
-import com.xxcactussell.domain.messages.model.MessageVideo
-import com.xxcactussell.domain.messages.model.Sticker
-import com.xxcactussell.domain.messages.model.StickerFormatTgs
-import com.xxcactussell.domain.messages.model.StickerFormatWebm
-import com.xxcactussell.domain.messages.model.StickerFormatWebp
+import com.xxcactussell.domain.MessageAnimatedEmoji
+import com.xxcactussell.domain.MessageAnimation
+import com.xxcactussell.domain.MessageDocument
+import com.xxcactussell.domain.MessagePhoto
+import com.xxcactussell.domain.MessageSendingStateFailed
+import com.xxcactussell.domain.MessageSendingStatePending
+import com.xxcactussell.domain.MessageSticker
+import com.xxcactussell.domain.MessageText
+import com.xxcactussell.domain.MessageVideo
+import com.xxcactussell.domain.Sticker
 import com.xxcactussell.presentation.LocalRootViewModel
 import com.xxcactussell.presentation.messages.model.MessageUiItem
 import com.xxcactussell.presentation.tools.ColumnWidthOf
@@ -48,8 +46,8 @@ fun MessageContent(message: MessageUiItem.MessageItem, onMediaClicked: (Long) ->
         MaterialTheme.colorScheme.onSecondaryContainer
     }
 
-    val isSending = message.message.sendingState is MessageStatus.Pending
-    val isFailed = message.message.sendingState is MessageStatus.Failed
+    val isSending = message.message.sendingState is MessageSendingStatePending
+    val isFailed = message.message.sendingState is MessageSendingStateFailed
 
     when (val content = message.message.content) {
         is MessageText -> MessageTextContent(content, messageTextColor)

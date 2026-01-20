@@ -7,8 +7,8 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Log
 import android.webkit.MimeTypeMap
-import com.xxcactussell.domain.utils.FileHelper
-import com.xxcactussell.domain.utils.MediaMetadata
+import com.xxcactussell.repositories.utils.FileHelper
+import com.xxcactussell.repositories.utils.MediaMetadata
 import dagger.hilt.android.qualifiers.ApplicationContext
 import jakarta.inject.Inject
 import jakarta.inject.Singleton

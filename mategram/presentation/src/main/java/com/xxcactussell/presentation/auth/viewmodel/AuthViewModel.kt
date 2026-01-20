@@ -2,13 +2,19 @@ package com.xxcactussell.presentation.auth.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.xxcactussell.domain.auth.model.AuthState
-import com.xxcactussell.domain.auth.repository.CheckAuthCodeUseCase
-import com.xxcactussell.domain.auth.repository.CheckAuthPasswordUseCase
-import com.xxcactussell.domain.auth.repository.GetAuthStateUseCase
-import com.xxcactussell.domain.auth.repository.SetOnlineStatusUseCase
-import com.xxcactussell.domain.auth.repository.SetPhoneNumberUseCase
-import com.xxcactussell.domain.auth.repository.SetTDLibParametersUseCase
+import com.xxcactussell.domain.AuthorizationState
+import com.xxcactussell.domain.AuthorizationStateClosed
+import com.xxcactussell.domain.AuthorizationStateReady
+import com.xxcactussell.domain.AuthorizationStateWaitCode
+import com.xxcactussell.domain.AuthorizationStateWaitPassword
+import com.xxcactussell.domain.AuthorizationStateWaitPhoneNumber
+import com.xxcactussell.domain.AuthorizationStateWaitTdlibParameters
+import com.xxcactussell.repositories.auth.repository.CheckAuthCodeUseCase
+import com.xxcactussell.repositories.auth.repository.CheckAuthPasswordUseCase
+import com.xxcactussell.repositories.auth.repository.GetAuthStateUseCase
+import com.xxcactussell.repositories.auth.repository.SetOnlineStatusUseCase
+import com.xxcactussell.repositories.auth.repository.SetPhoneNumberUseCase
+import com.xxcactussell.repositories.auth.repository.SetTDLibParametersUseCase
 import com.xxcactussell.presentation.auth.model.AuthEvent
 import com.xxcactussell.presentation.auth.model.AuthStep
 import com.xxcactussell.presentation.auth.model.AuthUiState
@@ -51,26 +57,20 @@ class AuthViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
 
-    private fun mapDomainStateToUiState(domainState: AuthState): AuthUiState {
+    private fun mapDomainStateToUiState(domainState: AuthorizationState): AuthUiState {
         return when (domainState) {
-            is AuthState.Initial,
-            is AuthState.WaitTDLibParameters ->
-                _uiState.value.copy(currentStep = AuthStep.Loading)
-            is AuthState.WaitPhoneNumber -> _uiState.value.copy(currentStep = AuthStep.InputPhone)
-            is AuthState.WaitCode -> _uiState.value.copy(
+            is AuthorizationStateWaitPhoneNumber -> _uiState.value.copy(currentStep = AuthStep.InputPhone)
+            is AuthorizationStateWaitCode -> _uiState.value.copy(
                 currentStep = AuthStep.InputCode,
-                phoneNumber = domainState.phoneNumber,
-                timeout = domainState.timeout
+                phoneNumber = domainState.codeInfo.phoneNumber,
+                timeout = domainState.codeInfo.timeout
             )
-            is AuthState.WaitPassword -> _uiState.value.copy(
+            is AuthorizationStateWaitPassword -> _uiState.value.copy(
                 currentStep = AuthStep.InputPassword,
                 passwordHint = domainState.passwordHint
             )
-            is AuthState.Ready -> _uiState.value.copy(currentStep = AuthStep.Success)
-            is AuthState.Error -> _uiState.value.copy(
-                currentStep = AuthStep.Loading,
-                errorMessage = domainState.message
-            )
+            is AuthorizationStateReady -> _uiState.value.copy(currentStep = AuthStep.Success)
+            else  -> _uiState.value.copy(currentStep = AuthStep.Loading)
         }
     }
 

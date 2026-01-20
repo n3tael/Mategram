@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -18,10 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.xxcactussell.domain.messages.model.MessageContent
 import com.xxcactussell.presentation.messages.model.MessageUiItem
 import com.xxcactussell.presentation.messages.model.getReactions
-import com.xxcactussell.presentation.messages.model.isOutgoing
 
 @Composable
 fun SystemServiceMessage(message: MessageUiItem.MessageItem) {

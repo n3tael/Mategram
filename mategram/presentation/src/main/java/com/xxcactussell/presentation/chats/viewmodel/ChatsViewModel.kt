@@ -2,16 +2,21 @@ package com.xxcactussell.presentation.chats.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.xxcactussell.domain.chats.model.Chat
-import com.xxcactussell.domain.chats.model.ChatFolder
-import com.xxcactussell.domain.chats.model.ChatList
-import com.xxcactussell.domain.chats.model.ChatStatus
-import com.xxcactussell.domain.chats.model.User
-import com.xxcactussell.domain.chats.model.toChatPhoto
-import com.xxcactussell.domain.chats.repository.LoadChatsUseCase
-import com.xxcactussell.domain.chats.repository.ObserveChatFoldersUseCase
-import com.xxcactussell.domain.chats.repository.ObserveChatsUpdateUseCase
-import com.xxcactussell.domain.chats.repository.ObserveMeUseCase
+import com.xxcactussell.domain.Chat
+import com.xxcactussell.domain.ChatFolder
+import com.xxcactussell.domain.ChatFolderInfo
+import com.xxcactussell.domain.ChatList
+import com.xxcactussell.domain.ChatListArchive
+import com.xxcactussell.domain.ChatListFolder
+import com.xxcactussell.domain.ChatListMain
+import com.xxcactussell.domain.User
+import com.xxcactussell.domain.UserStatusOnline
+import com.xxcactussell.domain.toChatPhotoInfo
+import com.xxcactussell.repositories.chats.model.ChatStatus
+import com.xxcactussell.repositories.chats.repository.LoadChatsUseCase
+import com.xxcactussell.repositories.chats.repository.ObserveChatFoldersUseCase
+import com.xxcactussell.repositories.chats.repository.ObserveChatsUpdateUseCase
+import com.xxcactussell.repositories.chats.repository.ObserveMeUseCase
 import com.xxcactussell.presentation.chats.model.AvatarUiState
 import com.xxcactussell.presentation.chats.model.ChatItemUiState
 import com.xxcactussell.presentation.chats.model.ChatListUiState
@@ -66,7 +71,7 @@ class ChatsViewModel @Inject constructor(
 
     private fun processChatsIntoFolders(
         allChats: List<Chat>,
-        folders: List<ChatFolder>
+        folders: List<ChatFolderInfo>
     ): Map<Int, List<ChatItemUiState>> {
         val folderMap = mutableMapOf<Int, ArrayList<Pair<Chat, Long>>>()
         folders.forEach { folderMap[it.id] = ArrayList() }
@@ -78,9 +83,9 @@ class ChatsViewModel @Inject constructor(
                 if (pos.order == 0L) return@forEach
 
                 val folderId = when (val list = pos.list) {
-                    is ChatList.Main -> -1
-                    is ChatList.Archive -> -2
-                    is ChatList.Folder -> list.id
+                    is ChatListMain -> -1
+                    is ChatListArchive -> -2
+                    is ChatListFolder -> list.chatFolderId
                 }
                 val list = folderMap.getOrPut(folderId) { ArrayList() }
                 list.add(chat to pos.order)
@@ -103,9 +108,9 @@ class ChatsViewModel @Inject constructor(
     private fun Chat.isPinnedInFolder(targetFolderId: Int): Boolean {
         return positions.any { pos ->
             val id = when (val list = pos.list) {
-                is ChatList.Main -> -1
-                is ChatList.Archive -> -2
-                is ChatList.Folder -> list.id
+                is ChatListMain -> -1
+                is ChatListArchive -> -2
+                is ChatListFolder -> list.chatFolderId
             }
             id == targetFolderId && pos.isPinned
         }
@@ -113,15 +118,15 @@ class ChatsViewModel @Inject constructor(
 
     private fun ChatList.isFolderId(id: Int): Boolean {
         return when(this) {
-            is ChatList.Main -> id == -1
-            is ChatList.Archive -> id == -2
-            is ChatList.Folder -> this.id == id
+            is ChatListMain -> id == -1
+            is ChatListArchive -> id == -2
+            is ChatListFolder -> this.chatFolderId == id
         }
     }
 
     private fun createChatListUiState(
         baseChatsMap: Map<Int, List<ChatItemUiState>>,
-        folders: List<ChatFolder>,
+        folders: List<ChatFolderInfo>,
         selectedFolder: Int?,
         selectedChat: Long?,
         me: User?
@@ -147,7 +152,7 @@ class ChatsViewModel @Inject constructor(
                 user = me,
                 avatar = AvatarUiState(
                     chatId = me.id,
-                    photo = me.profilePhoto?.toChatPhoto(),
+                    photo = me.profilePhoto?.toChatPhotoInfo(),
                     title = me.firstName
                 )
             )
@@ -171,7 +176,7 @@ class ChatsViewModel @Inject constructor(
             isSelected = false,
             isUnread = this.unreadCount > 0,
             isPinned = position?.isPinned ?: false,
-            isOnline = this.status is ChatStatus.Online,
+            isOnline = this.status is UserStatusOnline,
             photo = AvatarUiState(
                 chatId = this.id,
                 photo = this.photo,

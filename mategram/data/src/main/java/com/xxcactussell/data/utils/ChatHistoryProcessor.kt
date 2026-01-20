@@ -3,15 +3,16 @@ package com.xxcactussell.data.utils
 import android.util.Log
 import com.xxcactussell.data.TdClientManager
 import com.xxcactussell.data.impl.MessagesRepositoryImpl
-import com.xxcactussell.domain.chats.model.ChatAction
-import com.xxcactussell.domain.messages.model.Message
-import com.xxcactussell.domain.messages.model.MessageInteractionInfo
-import com.xxcactussell.domain.messages.model.MessageListItem
-import com.xxcactussell.domain.messages.model.MessageReplyTo
-import com.xxcactussell.domain.messages.model.getId
+import com.xxcactussell.data.utils.mappers.message.toDomain
+import com.xxcactussell.domain.ChatAction
+import com.xxcactussell.domain.ChatActionCancel
+import com.xxcactussell.domain.Message
+import com.xxcactussell.domain.MessageInteractionInfo
+import com.xxcactussell.domain.MessageReplyToMessage
+import com.xxcactussell.repositories.messages.model.MessageListItem
+import com.xxcactussell.repositories.messages.utils.getId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,7 +37,7 @@ class ChatHistoryProcessor(
     private val _items = MutableStateFlow<List<MessageListItem>>(emptyList())
     val items: StateFlow<List<MessageListItem>> = _items.asStateFlow()
 
-    private val _action = MutableStateFlow<ChatAction>(ChatAction.Cancel)
+    private val _action = MutableStateFlow<ChatAction>(ChatActionCancel)
     val action: StateFlow<ChatAction> = _action.asStateFlow()
 
     private val albumMessageBuffer = mutableMapOf<Long, MutableList<Message>>()
@@ -51,12 +52,12 @@ class ChatHistoryProcessor(
     fun processNewMessage(message: Message) {
         var message = message
         scope.launch {
-            if (message.replyTo is MessageReplyTo.Message) {
+            if (message.replyTo is MessageReplyToMessage) {
                 message = message.copy(
-                    replyTo = (message.replyTo as MessageReplyTo.Message).copy(
+                    replyTo = (message.replyTo as MessageReplyToMessage).copy(
                         message = getReplyMessage(
-                            (message.replyTo as MessageReplyTo.Message).chatId,
-                            (message.replyTo as MessageReplyTo.Message).messageId
+                            (message.replyTo as MessageReplyToMessage).chatId,
+                            (message.replyTo as MessageReplyToMessage).messageId
                         )
                     )
                 )
@@ -129,12 +130,12 @@ class ChatHistoryProcessor(
 
             var message = updatedMessage
 
-            if (message.replyTo is MessageReplyTo.Message) {
+            if (message.replyTo is MessageReplyToMessage) {
                 message = message.copy(
-                    replyTo = (message.replyTo as MessageReplyTo.Message).copy(
+                    replyTo = (message.replyTo as MessageReplyToMessage).copy(
                         message = getReplyMessage(
-                            (message.replyTo as MessageReplyTo.Message).chatId,
-                            (message.replyTo as MessageReplyTo.Message).messageId
+                            (message.replyTo as MessageReplyToMessage).chatId,
+                            (message.replyTo as MessageReplyToMessage).messageId
                         )
                     )
                 )

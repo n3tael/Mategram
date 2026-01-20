@@ -55,7 +55,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.xxcactussell.domain.messages.model.FormattedText
+import com.xxcactussell.domain.FormattedText
 import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.chats.model.ChatListUiState
 import com.xxcactussell.presentation.chats.model.ChatsEvent
@@ -187,7 +187,10 @@ fun ChatListContent(
                                             else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                                         },
                                 ) {
-                                    FormattedTextView(text = if (tab.title != null) tab.title.text else FormattedText(localizedString("FilterAllChats"), emptyList()), clickable = false)
+                                    FormattedTextView(text = if (tab.title != null) tab.title.text else FormattedText(
+                                        localizedString("FilterAllChats"),
+                                        emptyList()
+                                    ), clickable = false)
                                     tab.unreadCount.let {
                                         if (it > 0) {
                                             Spacer(Modifier.size(ToggleButtonDefaults.IconSpacing))

@@ -1,0 +1,33 @@
+package com.xxcactussell.domain
+
+data class UserFullInfo(
+    val personalPhoto: ChatPhoto? = null,
+    val photo: ChatPhoto? = null,
+    val publicPhoto: ChatPhoto? = null,
+    val blockList: BlockList? = null,
+    val canBeCalled: Boolean,
+    val supportsVideoCalls: Boolean,
+    val hasPrivateCalls: Boolean,
+    val hasPrivateForwards: Boolean,
+    val hasRestrictedVoiceAndVideoNoteMessages: Boolean,
+    val hasPostedToProfileStories: Boolean,
+    val hasSponsoredMessagesEnabled: Boolean,
+    val needPhoneNumberPrivacyException: Boolean,
+    val setChatBackground: Boolean,
+    val bio: FormattedText? = null,
+    val birthdate: Birthdate? = null,
+    val personalChatId: Long,
+    val giftCount: Int,
+    val groupInCommonCount: Int,
+    val incomingPaidMessageStarCount: Long,
+    val outgoingPaidMessageStarCount: Long,
+    val giftSettings: GiftSettings,
+    val botVerification: BotVerification? = null,
+    val mainProfileTab: ProfileTab? = null,
+    val firstProfileAudio: Audio? = null,
+    val rating: UserRating? = null,
+    val pendingRating: UserRating? = null,
+    val pendingRatingDate: Int,
+    val businessInfo: BusinessInfo? = null,
+    val botInfo: BotInfo? = null
+) : Object

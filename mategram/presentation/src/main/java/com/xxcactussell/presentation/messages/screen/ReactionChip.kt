@@ -6,27 +6,29 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SelectableChipColors
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import com.xxcactussell.domain.messages.model.FormattedText
-import com.xxcactussell.domain.messages.model.MessageReaction
-import com.xxcactussell.domain.messages.model.ReactionType
-import com.xxcactussell.domain.messages.model.TextEntity
-import com.xxcactussell.domain.messages.model.TextEntityTypeCustomEmoji
+import com.xxcactussell.domain.FormattedText
+import com.xxcactussell.domain.MessageReaction
+import com.xxcactussell.domain.ReactionType
+import com.xxcactussell.domain.ReactionTypeCustomEmoji
+import com.xxcactussell.domain.ReactionTypeEmoji
+import com.xxcactussell.domain.ReactionTypePaid
+import com.xxcactussell.domain.TextEntity
+import com.xxcactussell.domain.TextEntityTypeCustomEmoji
 import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.tools.FormattedTextView
 
 @Composable
 fun ReactionChip(reaction: MessageReaction, onClick: () -> Unit) {
     val icon : @Composable (() -> Unit) = when (val type = reaction.type) {
-        is ReactionType.Custom -> {
+        is ReactionTypeCustomEmoji -> {
             {
-                val entities = listOf(TextEntity(0,1, TextEntityTypeCustomEmoji(type.id)))
+                val entities = listOf(TextEntity(0, 1, TextEntityTypeCustomEmoji(type.customEmojiId)))
 
                 val textDp = 16.dp
 
@@ -42,7 +44,7 @@ fun ReactionChip(reaction: MessageReaction, onClick: () -> Unit) {
                 )
             }
         }
-        is ReactionType.Emoji -> {
+        is ReactionTypeEmoji -> {
             {
                 val textDp = 16.dp
 
@@ -57,7 +59,7 @@ fun ReactionChip(reaction: MessageReaction, onClick: () -> Unit) {
                 )
             }
         }
-        is ReactionType.Paid -> {
+        is ReactionTypePaid -> {
             {
                 Icon(
                     painterResource(R.drawable.star_24px),

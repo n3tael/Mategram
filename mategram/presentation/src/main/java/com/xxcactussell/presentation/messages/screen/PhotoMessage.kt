@@ -33,10 +33,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
-import com.xxcactussell.domain.messages.model.Photo
-import com.xxcactussell.domain.messages.model.Video
+import com.xxcactussell.domain.Photo
+import com.xxcactussell.domain.Video
 import com.xxcactussell.mategram.presentation.R
-import com.xxcactussell.presentation.LocalNavAnimatedVisibilityScope
 import com.xxcactussell.presentation.LocalRootViewModel
 import com.xxcactussell.presentation.LocalSharedTransitionScope
 import kotlinx.coroutines.Dispatchers

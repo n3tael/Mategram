@@ -1,9 +1,9 @@
 package com.xxcactussell.data.impl
 
 import com.xxcactussell.data.TdClientManager
-import com.xxcactussell.data.utils.todomain.toDomain
-import com.xxcactussell.domain.files.repository.FileRepository
-import com.xxcactussell.domain.messages.model.File
+import com.xxcactussell.data.utils.mappers.file.toDomain
+import com.xxcactussell.domain.File
+import com.xxcactussell.repositories.files.repository.FileRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob

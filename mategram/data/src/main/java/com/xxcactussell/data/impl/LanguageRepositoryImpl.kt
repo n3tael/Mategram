@@ -4,10 +4,10 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.xxcactussell.data.TdClientManager
-import com.xxcactussell.domain.localization.model.LanguagePack
-import com.xxcactussell.domain.localization.model.LocalizedResource
-import com.xxcactussell.domain.localization.model.TranslationValue
-import com.xxcactussell.domain.localization.repository.LanguageRepository
+import com.xxcactussell.repositories.localization.model.LanguagePack
+import com.xxcactussell.repositories.localization.model.LocalizedResource
+import com.xxcactussell.repositories.localization.model.TranslationValue
+import com.xxcactussell.repositories.localization.repository.LanguageRepository
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow

@@ -1,13 +1,13 @@
 package com.xxcactussell.presentation.chats.model
 
-import com.xxcactussell.domain.chats.model.Chat
-import com.xxcactussell.domain.chats.model.ChatFolderName
-import com.xxcactussell.domain.chats.model.ChatPhoto
-import com.xxcactussell.domain.chats.model.User
+import com.xxcactussell.domain.Chat
+import com.xxcactussell.domain.ChatFolderName
+import com.xxcactussell.domain.ChatPhotoInfo
+import com.xxcactussell.domain.User
 
 data class AvatarUiState(
     val chatId: Long,
-    val photo: ChatPhoto?,
+    val photo: ChatPhotoInfo?,
     val title: String
 )
 

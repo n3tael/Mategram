@@ -20,32 +20,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.xxcactussell.domain.messages.model.FormattedText
-import com.xxcactussell.domain.messages.model.Message
-import com.xxcactussell.domain.messages.model.MessageAnimatedEmoji
-import com.xxcactussell.domain.messages.model.MessageAnimation
-import com.xxcactussell.domain.messages.model.MessageAudio
-import com.xxcactussell.domain.messages.model.MessageChecklist
-import com.xxcactussell.domain.messages.model.MessageContact
-import com.xxcactussell.domain.messages.model.MessageDice
-import com.xxcactussell.domain.messages.model.MessageDocument
-import com.xxcactussell.domain.messages.model.MessageGame
-import com.xxcactussell.domain.messages.model.MessageGift
-import com.xxcactussell.domain.messages.model.MessageLocation
-import com.xxcactussell.domain.messages.model.MessagePaidMedia
-import com.xxcactussell.domain.messages.model.MessagePhoto
-import com.xxcactussell.domain.messages.model.MessagePoll
-import com.xxcactussell.domain.messages.model.MessageReplyTo
-import com.xxcactussell.domain.messages.model.MessageSticker
-import com.xxcactussell.domain.messages.model.MessageStory
-import com.xxcactussell.domain.messages.model.MessageText
-import com.xxcactussell.domain.messages.model.MessageUpgradedGift
-import com.xxcactussell.domain.messages.model.MessageVenue
-import com.xxcactussell.domain.messages.model.MessageVideo
-import com.xxcactussell.domain.messages.model.MessageVideoNote
-import com.xxcactussell.domain.messages.model.MessageVoiceNote
-import com.xxcactussell.domain.messages.model.TextEntity
-import com.xxcactussell.domain.messages.model.TextEntityTypeCustomEmoji
+import com.xxcactussell.domain.*
+import com.xxcactussell.domain.MessageAnimatedEmoji
 import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.localization.localizedString
 import com.xxcactussell.presentation.tools.FormattedTextView
@@ -53,11 +29,9 @@ import com.xxcactussell.presentation.tools.getServiceMessageText
 
 @Composable
 fun ReplyMarkup(message: Message, isOutgoing: Boolean, onMessageClicked: (Long) -> Unit) {
-    val messageReplyTo = message.replyTo
+    val messageReplyTo = message.replyTo ?: return
 
-    if (messageReplyTo == null) return
-
-    if (messageReplyTo is MessageReplyTo.Message) {
+    if (messageReplyTo is MessageReplyToMessage) {
         if (messageReplyTo.message == null) return
         ReplyBubble(messageReplyTo.messageId, isOutgoing,  onMessageClicked) {
             ReplyMarkupMessage(
@@ -115,7 +89,7 @@ fun ReplyBubble(
 @Composable
 fun ReplyMarkupMessage(
     modifier: Modifier = Modifier,
-    messageReplyTo: MessageReplyTo.Message
+    messageReplyTo: MessageReplyToMessage
 ) {
     val iconModifier = Modifier.size(16.dp)
     val textStyle = MaterialTheme.typography.bodyMedium

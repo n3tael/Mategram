@@ -8,7 +8,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.xxcactussell.domain.messages.model.FormattedText
+import com.xxcactussell.domain.FormattedText
 import com.xxcactussell.presentation.tools.FormattedTextView
 
 @Composable
