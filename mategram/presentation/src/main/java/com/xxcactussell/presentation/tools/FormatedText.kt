@@ -2,6 +2,8 @@ package com.xxcactussell.presentation.tools
 
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.LocalBackgroundTextMeasurementExecutor
 import androidx.compose.foundation.text.appendInlineContent
@@ -128,16 +130,14 @@ fun FormattedTextView(
 
     val inlineContent = remember(uiState.inlineContent, fontSize) {
         val size = if (fontSize.isSpecified) fontSize else 16.sp
-        val dpSize = size.value.dp + 4.dp
+        val dpSize = size.value * 1.2
         val placeholder = Placeholder(size, size, PlaceholderVerticalAlign.TextCenter)
 
         uiState.inlineContent.mapValues { (_, emojiData) ->
             InlineTextContent(placeholder) {
                 SmartEmojiBox(
                     fileId = emojiData.fileId,
-                    stickerFormat = emojiData.stickerFormat,
-                    size = dpSize,
-                    style = style,
+                    size = dpSize.dp,
                     filesFlow = filesFlow,
                     onDownloadRequest = { rootViewModel.downloadFile(it) }
                 )
@@ -206,9 +206,7 @@ fun FormattedTextView(
 @Composable
 private fun SmartEmojiBox(
     fileId: Int,
-    stickerFormat: StickerFormat,
     size: androidx.compose.ui.unit.Dp,
-    style: TextStyle,
     filesFlow: Flow<Map<Int, File>>,
     onDownloadRequest: (Int) -> Unit
 ) {
@@ -226,7 +224,7 @@ private fun SmartEmojiBox(
     if (path != null) {
         Sticker(path, size)
     } else {
-        Text(text = "⏳", style = style)
+        Spacer(Modifier.size(size))
         if (needsDownload) {
             LaunchedEffect(fileId) {
                 onDownloadRequest(fileId)
@@ -242,72 +240,59 @@ private fun mapToUiState(
     surfaceVariantColor: Color,
     primaryColor: Color
 ): FormattedTextUiState {
-    val builder = AnnotatedString.Builder()
+    val builder = AnnotatedString.Builder(text.text)
     val inlineContentMap = mutableMapOf<String, StaticEmojiData>()
+    val spoilerEntities = mutableListOf<TextEntity>()
 
-    val boundaryPoints = mutableSetOf(0, text.text.length)
-    text.entities.forEach {
-        boundaryPoints.add(it.offset)
-        boundaryPoints.add(it.offset + it.length)
-    }
-    val sortedPoints = boundaryPoints.toList().sorted()
+    val hiddenSpoilerRanges = text.entities
+        .filter { it.type is TextEntityTypeSpoiler && it.offset !in revealedSpoilers }
+        .map { it.offset until (it.offset + it.length) }
 
-    for (i in 0 until sortedPoints.size - 1) {
-        val start = sortedPoints[i]
-        val end = sortedPoints[i + 1]
-        if (start >= end) continue
+    text.entities.forEach { entity ->
+        val start = entity.offset
+        val end = entity.offset + entity.length
 
-        val coveringEntities =
-            text.entities.filter { it.offset <= start && (it.offset + it.length) >= end }
+        getSpanStyleForEntity(entity.type, surfaceVariantColor, primaryColor)?.let { style ->
+            val isSpoiler = entity.type is TextEntityTypeSpoiler
+            val hidden = isSpoiler && entity.offset !in revealedSpoilers
 
-        val spoilerEntity = coveringEntities.firstOrNull { it.type is TextEntityTypeSpoiler }
-        val isSpoilerHidden = spoilerEntity != null && spoilerEntity.offset !in revealedSpoilers
-
-        val combinedSpanStyle = coveringEntities
-            .mapNotNull { getSpanStyleForEntity(it.type, surfaceVariantColor, primaryColor) }
-            .fold(SpanStyle()) { acc, style -> acc.merge(style) }
-            .let { if (isSpoilerHidden) it.copy(color = Color.Transparent) else it }
-
-        val customEmojiEntity =
-            coveringEntities.firstOrNull { it.type is TextEntityTypeCustomEmoji }
-
-        val paragraphStyles = coveringEntities.mapNotNull { getParagraphStyleForEntity(it.type) }
-
-        val combinedParagraphStyle = if (paragraphStyles.isNotEmpty()) {
-            paragraphStyles.reduce { acc, style -> acc.merge(style) }
-        } else {
-            null
+            val appliedStyle = if (hidden) style.copy(color = Color.Transparent) else style
+            builder.addStyle(appliedStyle, start, end)
         }
 
-        val segmentBlock: AnnotatedString.Builder.() -> Unit = {
-            withStyle(combinedSpanStyle) {
-                if (customEmojiEntity != null && !isSpoilerHidden) {
-                    val type = customEmojiEntity.type as TextEntityTypeCustomEmoji
-                    val emojiIdKey = "emoji_${type.customEmojiId}_${customEmojiEntity.offset}"
-                    val alternateText = text.text.substring(start, end)
+        getParagraphStyleForEntity(entity.type)?.let { style ->
+            builder.addStyle(style, start, end)
+        }
 
-                    appendInlineContent(emojiIdKey, alternateText)
+        if (entity.type is TextEntityTypeCustomEmoji) {
+            val type = entity.type as TextEntityTypeCustomEmoji
 
-                    val sticker = stickers[type.customEmojiId]
-                    if (sticker != null) {
-                        inlineContentMap[emojiIdKey] = StaticEmojiData(
-                            fileId = sticker.sticker.id,
-                            stickerFormat = sticker.format,
-                            customEmojiId = type.customEmojiId
-                        )
-                    }
-                } else {
-                    append(text.text.substring(start, end))
+            val isHiddenBySpoiler = hiddenSpoilerRanges.any { start in it }
+
+            if (!isHiddenBySpoiler) {
+                val emojiIdKey = "emoji_${type.customEmojiId}_${entity.offset}"
+
+                builder.addStringAnnotation(
+                    tag = "androidx.compose.foundation.text.inlineContent",
+                    annotation = emojiIdKey,
+                    start = start,
+                    end = end
+                )
+
+                stickers[type.customEmojiId]?.let { sticker ->
+                    inlineContentMap[emojiIdKey] = StaticEmojiData(
+                        fileId = sticker.sticker.id,
+                        stickerFormat = sticker.format,
+                        customEmojiId = type.customEmojiId
+                    )
                 }
             }
         }
-        if (combinedParagraphStyle != null) {
-            builder.withStyle(combinedParagraphStyle) { segmentBlock() }
-        } else {
-            builder.segmentBlock()
+
+        if (entity.type is TextEntityTypeSpoiler) {
+            spoilerEntities.add(entity)
         }
     }
-    val spoilerEntities = text.entities.filter { it.type is TextEntityTypeSpoiler }
 
     return FormattedTextUiState(
         annotatedString = builder.toAnnotatedString(),

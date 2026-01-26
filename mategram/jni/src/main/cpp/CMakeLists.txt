@@ -146,13 +146,30 @@ target_compile_definitions(${NATIVE_LIB} PUBLIC
 
         TDLIB_TDAPI_CLASS_PATH="org/drinkless/tdlib/TdApi"
 )
-target_compile_options(${NATIVE_LIB} PUBLIC
-        -Wall -Werror -Wno-deprecated-declarations
-        -Wno-macro-redefined -Wno-unused-variable
-        -fno-math-errno -fno-strict-aliasing -funroll-loops
-        -ffast-math
-        -fno-rtti
-)
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    target_compile_options(${NATIVE_LIB} PUBLIC
+            -O3 -flto
+            -Wall -Wno-deprecated-declarations
+            -Wno-macro-redefined -Wno-unused-variable
+            -fno-math-errno -fno-strict-aliasing -funroll-loops
+            -fassociative-math -freciprocal-math -fno-signed-zeros
+            -fno-rtti
+            -fvisibility=hidden
+            -march=native
+            -ftree-vectorize -fvectorize
+    )
+    target_link_options(${NATIVE_LIB} PRIVATE -O3 -flto)
+else()
+    target_compile_options(${NATIVE_LIB} PUBLIC
+            -O2
+            -Wall -Wno-deprecated-declarations
+            -Wno-macro-redefined -Wno-unused-variable
+            -fno-math-errno -fno-strict-aliasing -funroll-loops
+            -fassociative-math
+            -fno-rtti
+            -fvisibility=hidden
+    )
+endif()
 
 target_link_libraries(${NATIVE_LIB}
         jni-utils

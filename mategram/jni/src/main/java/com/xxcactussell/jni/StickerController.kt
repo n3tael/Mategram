@@ -1,9 +1,11 @@
 package com.xxcactussell.jni
 
 import android.graphics.Bitmap
+import com.xxcactussell.utils.PerformanceProfile
+import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.Closeable
-import java.nio.ByteBuffer
-import kotlin.math.min
 
 class StickerController(
     val type: StickerType,
@@ -13,70 +15,61 @@ class StickerController(
     cacheDirPath: String? = null
 ) : Closeable {
 
-    init { NativeStickerCore }
-
-    private val lock = Any()
-
     enum class StickerType { LOTTIE, WEBP, VP9 }
 
     @Volatile
     private var nativePtr: Long = 0
+
+    @Volatile
+    var isReleased = false
+        private set
+
     val stickerWidth: Int
     val stickerHeight: Int
     val renderWidth: Int
     val renderHeight: Int
+
     private var totalFrames: Int = 0
     private var currentFrame: Int = 0
-    private var nextFrameDelay: Long = 1000L / 60L
-    private var directByteBuffer: ByteBuffer? = null
+    private var nextFrameTimeMs: Long = 0
+    private var frameDelayMs: Long = 16
+
+    private var startTimeMs: Long = 0
 
     val bitmap: Bitmap
+
+    @Volatile
+    private var newFrameAvailable = false
+
+    private val decodingMutex = Mutex()
+    var onFrameReady: (() -> Unit)? = null
 
     init {
         cacheDirPath?.let { NativeStickerCore.setCacheDir(it) }
 
-        when (type) {
-            StickerType.LOTTIE -> {
-                if (source is String) {
-                    nativePtr = NativeStickerCore.createLottieHandle(source)
-                }
-            }
-            StickerType.WEBP -> {
-                if (source is ByteArray) {
-                    directByteBuffer = ByteBuffer.allocateDirect(source.size)
-                    directByteBuffer?.put(source)
-                    directByteBuffer?.flip()
-                    nativePtr = NativeStickerCore.createWebPHandle(directByteBuffer!!)
-                }
-            }
-            StickerType.VP9 -> {
-                if (source is ByteArray) {
-                    directByteBuffer = ByteBuffer.allocateDirect(source.size)
-                    directByteBuffer?.put(source)
-                    directByteBuffer?.flip()
-                    nativePtr = NativeStickerCore.createVpxHandle(directByteBuffer!!)
-                }
-            }
+        nativePtr = when (type) {
+            StickerType.LOTTIE -> if (source is String) NativeStickerCore.createLottieHandle(source) else 0L
+            StickerType.WEBP -> if (source is ByteArray) NativeStickerCore.createWebPHandleFromBytes(source) else 0L
+            StickerType.VP9 -> if (source is ByteArray) NativeStickerCore.createVpxHandleFromBytes(source) else 0L
         }
 
-        val dimensions = IntArray(2)
+        val dims = IntArray(2)
         if (nativePtr != 0L) {
             when (type) {
-                StickerType.LOTTIE -> NativeStickerCore.getLottieSize(nativePtr, dimensions)
-                StickerType.WEBP -> NativeStickerCore.getWebPSize(nativePtr, dimensions)
-                StickerType.VP9 -> NativeStickerCore.getVpxSize(nativePtr, dimensions)
+                StickerType.LOTTIE -> NativeStickerCore.getLottieSize(nativePtr, dims)
+                StickerType.WEBP -> NativeStickerCore.getWebPSize(nativePtr, dims)
+                StickerType.VP9 -> NativeStickerCore.getVpxSize(nativePtr, dims)
             }
         }
 
-        stickerWidth = dimensions[0].takeIf { it > 0 } ?: 1
-        stickerHeight = dimensions[1].takeIf { it > 0 } ?: 1
+        stickerWidth = dims[0].takeIf { it > 0 } ?: 1
+        stickerHeight = dims[1].takeIf { it > 0 } ?: 1
 
-        val widthRatio = targetWidth.toFloat() / stickerWidth
-        val heightRatio = targetHeight.toFloat() / stickerHeight
-        val ratio = min(widthRatio, heightRatio)
+        val isEmoji = targetWidth < 150
+        val scale = if (isEmoji && targetWidth < 100) 1.0f else PerformanceProfile.getResolutionScale(isEmoji)
 
-        renderWidth = (stickerWidth * ratio).toInt().coerceAtLeast(1)
-        renderHeight = (stickerHeight * ratio).toInt().coerceAtLeast(1)
+        renderWidth = (targetWidth * scale).toInt().coerceAtLeast(1)
+        renderHeight = (targetHeight * scale).toInt().coerceAtLeast(1)
 
         if (nativePtr != 0L) {
             when (type) {
@@ -90,52 +83,83 @@ class StickerController(
 
         if (type == StickerType.LOTTIE && nativePtr != 0L) {
             totalFrames = NativeStickerCore.getLottieFrameCount(nativePtr)
-            val frameRate = NativeStickerCore.getLottieFrameRate(nativePtr)
-            if (frameRate > 0) {
-                nextFrameDelay = (1000L / frameRate).toLong().coerceAtLeast(1L)
-            }
+            val fps = NativeStickerCore.getLottieFrameRate(nativePtr).toInt()
+            frameDelayMs = (1000L / fps.coerceAtMost(PerformanceProfile.targetFps))
         }
     }
 
-    fun updateFrame() {
-        synchronized(lock) {
-            if (nativePtr == 0L) return
+    fun tryDecodeNextFrame(currentTimeMs: Long, scope: CoroutineScope) {
+        if (currentTimeMs < nextFrameTimeMs || isReleased || decodingMutex.isLocked) return
 
-            when (type) {
-                StickerType.LOTTIE -> {
-                    NativeStickerCore.renderLottieWithCache(nativePtr, currentFrame, bitmap)
-                    currentFrame = (currentFrame + 1) % (if (totalFrames > 0) totalFrames else 1)
-                }
-                StickerType.WEBP -> {
-                    val duration = NativeStickerCore.renderWebPWithCache(nativePtr, bitmap)
-                    nextFrameDelay = if (duration > 0) duration.toLong().coerceAtLeast(1L) else 40L
-                }
-                StickerType.VP9 -> {
-                    var duration = NativeStickerCore.renderVpxWithCache(nativePtr, bitmap)
-                    if (duration < 0) {
-                        NativeStickerCore.seekVpxToStart(nativePtr)
-                        duration = NativeStickerCore.renderVpxWithCache(nativePtr, bitmap)
+        if (currentTimeMs - nextFrameTimeMs > 500) {
+            nextFrameTimeMs = currentTimeMs
+        }
+
+        if (decodingMutex.tryLock()) {
+            scope.launch {
+                try {
+                    val delay = doUpdateFrame(currentTimeMs)
+                    if (delay >= 0) {
+                        nextFrameTimeMs = currentTimeMs + delay
+                        newFrameAvailable = true
                     }
-                    nextFrameDelay = if (duration >= 0) duration.toLong().coerceAtLeast(1L) else 40L
+                } finally {
+                    decodingMutex.unlock()
                 }
             }
         }
     }
 
-    fun getNextFrameDelay(): Long = nextFrameDelay
+    fun checkNewFrameAvailable(): Boolean {
+        if (newFrameAvailable) {
+            newFrameAvailable = false
+            return true
+        }
+        return false
+    }
+
+    private fun doUpdateFrame(currentTimeMs: Long): Int {
+        val ptr = nativePtr
+        if (ptr == 0L || isReleased) return -1
+
+        if (startTimeMs == 0L) startTimeMs = currentTimeMs
+
+        return when (type) {
+            StickerType.LOTTIE -> {
+                val elapsed = currentTimeMs - startTimeMs
+                val frameIndex = ((elapsed / frameDelayMs) % totalFrames).toInt()
+
+                NativeStickerCore.renderLottieWithCache(ptr, frameIndex, bitmap)
+                frameDelayMs.toInt()
+            }
+            StickerType.WEBP -> NativeStickerCore.renderWebPWithCache(ptr, bitmap)
+            StickerType.VP9 -> {
+                var delay = NativeStickerCore.renderVpxWithCache(ptr, bitmap)
+                if (delay < 0) {
+                    NativeStickerCore.seekVpxToStart(ptr)
+                    delay = NativeStickerCore.renderVpxWithCache(ptr, bitmap)
+                }
+                delay.toLong().coerceAtLeast(PerformanceProfile.minFrameDelay).toInt()
+            }
+        }
+    }
 
     override fun close() {
-        synchronized(lock) {
-            if (nativePtr != 0L) {
-                when (type) {
-                    StickerType.LOTTIE -> NativeStickerCore.destroyLottieHandle(nativePtr)
-                    StickerType.WEBP -> NativeStickerCore.destroyWebPHandle(nativePtr)
-                    StickerType.VP9 -> NativeStickerCore.destroyVpxHandle(nativePtr)
+        isReleased = true
+        StickerAnimScheduler.remove(this)
+
+        runBlocking {
+            decodingMutex.withLock {
+                if (nativePtr != 0L) {
+                    when (type) {
+                        StickerType.LOTTIE -> NativeStickerCore.destroyLottieHandle(nativePtr)
+                        StickerType.WEBP -> NativeStickerCore.destroyWebPHandle(nativePtr)
+                        StickerType.VP9 -> NativeStickerCore.destroyVpxHandle(nativePtr)
+                    }
+                    nativePtr = 0L
                 }
-                nativePtr = 0L
             }
         }
         BitmapProvider.release(bitmap)
-        directByteBuffer = null
     }
 }

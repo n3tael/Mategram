@@ -42,6 +42,30 @@ extern "C" {
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
+
+class ScratchBufferPool {
+private:
+    std::mutex mtx;
+    std::vector<uint8_t> buffer;
+public:
+    uint8_t* get(size_t size) {
+        std::lock_guard<std::mutex> lock(mtx);
+        if (buffer.size() < size) buffer.resize(size);
+        return buffer.data();
+    }
+};
+static ScratchBufferPool gScratchPool;
+
+
+static thread_local std::vector<uint8_t> g_thread_scratch;
+uint8_t* get_thread_scratch(size_t size) {
+    if (g_thread_scratch.size() < size) {
+        g_thread_scratch.resize(size);
+    }
+    return g_thread_scratch.data();
+}
+
+
 static uint64_t fnv1a_hash64(const uint8_t* data, size_t size) {
     const uint64_t FNV_OFFSET = 14695981039346656037ULL;
     const uint64_t FNV_PRIME = 1099511628211ULL;
@@ -137,7 +161,7 @@ static std::list<CacheEntry> gCacheList;
 static std::unordered_map<std::string, std::list<CacheEntry>::iterator> gCacheMap;
 
 static size_t gCacheSizeBytes = 0;
-static size_t gCacheMaxBytes = 200ULL * 1024ULL * 1024ULL;
+static size_t gCacheMaxBytes = 300ULL * 1024ULL * 1024ULL;
 static std::string gCacheDir;
 
 static void ensureCacheDirExists() {
@@ -160,10 +184,12 @@ static void evictIfNeeded() {
 
 static std::string cacheFilePathForKey(const std::string& key) {
     if (gCacheDir.empty()) return "";
+
     uint64_t h64 = fnv1a_hash64(reinterpret_cast<const uint8_t*>(key.data()), key.size());
-    std::string hex = u64_to_hex(h64);
+
     char fname[128];
-    snprintf(fname, sizeof(fname), "stcache_%s.bin", hex.c_str());
+    snprintf(fname, sizeof(fname), "v2_%016llx.bin", (unsigned long long)h64);
+
     std::filesystem::path p(gCacheDir);
     p /= fname;
     return p.string();
@@ -206,50 +232,52 @@ static bool loadCacheFromDisk(const std::string& key, std::shared_ptr<std::vecto
 }
 
 static bool retrieveFromCache(const std::string& key, uint8_t* dst, int dstStride, int w, int h) {
-    std::lock_guard<std::mutex> lk(gCacheMutex);
-
+    std::unique_lock<std::mutex> lk(gCacheMutex);
     auto it = gCacheMap.find(key);
     if (it != gCacheMap.end()) {
         gCacheList.splice(gCacheList.begin(), gCacheList, it->second);
-
         auto& ce = *it->second;
         if (ce.w == w && ce.h == h && ce.data) {
-            const auto& buf = *ce.data;
-            for (int y = 0; y < h; ++y) {
-                memcpy(dst + static_cast<size_t>(y) * dstStride, buf.data() + static_cast<size_t>(y) * w * 4, static_cast<size_t>(w) * 4);
-            }
+            libyuv::CopyPlane(ce.data->data(), w * 4, dst, dstStride, w * 4, h);
             return true;
         }
     }
 
+    lk.unlock();
+
     std::shared_ptr<std::vector<uint8_t>> diskBuf;
     int dw = 0, dh = 0;
-    gCacheMutex.unlock();
     bool loaded = loadCacheFromDisk(key, diskBuf, dw, dh);
-    gCacheMutex.lock();
 
     if (loaded && diskBuf) {
-        if (dw == w && dh == h) {
-            CacheEntry newEntry{key, diskBuf, static_cast<size_t>(dw), static_cast<size_t>(dh)};
+        lk.lock();
+
+        if (gCacheMap.find(key) == gCacheMap.end() && dw == w && dh == h) {
+            CacheEntry newEntry{key, diskBuf, (size_t)dw, (size_t)dh};
             gCacheList.push_front(newEntry);
             gCacheMap[key] = gCacheList.begin();
-
             gCacheSizeBytes += diskBuf->size();
             evictIfNeeded();
-
-            const auto& buf = *diskBuf;
-            for (int y = 0; y < h; ++y) {
-                memcpy(dst + static_cast<size_t>(y) * dstStride, buf.data() + static_cast<size_t>(y) * w * 4, static_cast<size_t>(w) * 4);
-            }
-            return true;
         }
+
+        const auto& buf = *diskBuf;
+        if (dstStride == w * 4) {
+            memcpy(dst, buf.data(), (size_t)w * h * 4);
+        } else {
+            for (int y = 0; y < h; ++y) {
+                memcpy(dst + (size_t)y * dstStride,
+                       buf.data() + (size_t)y * w * 4,
+                       (size_t)w * 4);
+            }
+        }
+        return true;
     }
     return false;
 }
 
-static std::string makeCacheKeyFromHash(const char* prefix, const std::string& sourceHash, int frame, int w, int h) {
-    char buf[256];
-    snprintf(buf, sizeof(buf), "%s:%s:%d:%dx%d", prefix, sourceHash.c_str(), frame, w, h);
+static std::string makeFastKey(const std::string& sourceHash, int frame, int w, int h) {
+    char buf[128];
+    snprintf(buf, sizeof(buf), "%s_%d_%dx%d", sourceHash.c_str(), frame, w, h);
     return std::string(buf);
 }
 
@@ -260,9 +288,9 @@ static std::mutex gFramesMutex;
 static void storeToCache(const std::string& key, const uint8_t* src, int srcStride, int w, int h, const std::string& filePath) {
     size_t bytes = static_cast<size_t>(w) * h * 4;
     auto buf = std::make_shared<std::vector<uint8_t>>(bytes);
-    for (int y = 0; y < h; ++y) {
-        memcpy(buf->data() + static_cast<size_t>(y) * w * 4, src + static_cast<size_t>(y) * srcStride, static_cast<size_t>(w) * 4);
-    }
+
+    libyuv::CopyPlane(src, srcStride, buf->data(), w * 4, w * 4, h);
+
     {
         std::lock_guard<std::mutex> lk(gCacheMutex);
         if (gCacheMap.find(key) == gCacheMap.end()) {
@@ -364,7 +392,10 @@ public:
         renderWidth = w;
         renderHeight = h;
         if (renderWidth > 0 && renderHeight > 0) {
-            renderBuffer = std::unique_ptr<uint32_t>(new uint32_t[static_cast<size_t>(renderWidth) * renderHeight]);
+            size_t needed = static_cast<size_t>(renderWidth) * renderHeight;
+            if (!renderBuffer || renderBuffer.get() == nullptr) {
+                renderBuffer = std::unique_ptr<uint32_t>(new uint32_t[needed]);
+            }
         }
     }
     void renderToBuffer(int frame) const {
@@ -377,9 +408,13 @@ public:
         renderToBuffer(frame);
         const auto* src = reinterpret_cast<const uint8_t*>(renderBuffer.get());
         int srcStride = renderWidth * 4;
-        libyuv::ARGBToABGR(src, srcStride,
-                           reinterpret_cast<uint8_t*>(dstPixels), dstStride,
-                           renderWidth, renderHeight);
+        uint8_t* dst = reinterpret_cast<uint8_t*>(dstPixels);
+        if (srcStride == dstStride) {
+            size_t totalSize = static_cast<size_t>(renderWidth) * renderHeight * 4;
+            libyuv::ARGBToABGR(src, srcStride, dst, dstStride, renderWidth, renderHeight);
+        } else {
+            libyuv::ARGBToABGR(src, srcStride, dst, dstStride, renderWidth, renderHeight);
+        }
     }
     int totalFrames() const { return animation ? animation->totalFrame() : 0; }
     float frameRate() const { return animation ? animation->frameRate() : 0.0f; }
@@ -396,8 +431,6 @@ public:
     int lastTimestamp = 0;
     int frameIndex = 0;
 
-    std::vector<uint8_t> mConversionBuffer;
-
     explicit WebPInstance(const uint8_t* data, size_t data_size) {
         mData.assign(data, data + data_size);
         uint64_t h64 = fnv1a_hash64(mData.data(), mData.size());
@@ -410,20 +443,14 @@ public:
         WebPAnimDecoderOptions options;
         if (WebPAnimDecoderOptionsInit(&options)) {
             options.color_mode = MODE_RGBA;
-            options.use_threads = 1;
+            options.use_threads = 1; // 1 поток для WebP вполне достаточно для стикера
             dec = WebPAnimDecoderNew(&webp_data, &options);
-            if (dec) {
-                WebPAnimDecoderGetInfo(dec, &info);
-                // mConversionBuffer will be resized on demand
-            }
+            if (dec) WebPAnimDecoderGetInfo(dec, &info);
         }
     }
 
     ~WebPInstance() {
-        if (dec) {
-            WebPAnimDecoderDelete(dec);
-            dec = nullptr;
-        }
+        if (dec) WebPAnimDecoderDelete(dec);
     }
 
     void prepareRendering(int w, int h) {
@@ -431,55 +458,53 @@ public:
         renderHeight = h;
     }
 
-    int renderNext(void* dstPixels, int dstStride, bool onlyAdvance) {
-        if (!dec) return -1;
-
-        uint8_t* frameRGBA = nullptr;
-        int timestamp = 0;
-
-        if (!WebPAnimDecoderGetNext(dec, &frameRGBA, &timestamp)) {
-            WebPAnimDecoderReset(dec);
-            lastTimestamp = 0;
-            frameIndex = 0;
-            if (!WebPAnimDecoderGetNext(dec, &frameRGBA, &timestamp)) {
-                return -1;
-            }
-        }
-
-        int delay = timestamp - lastTimestamp;
-        if (delay <= 0) delay = 16;
-        lastTimestamp = timestamp;
-
-        if (onlyAdvance) return delay;
-
-        int srcW = info.canvas_width;
-        int srcH = info.canvas_height;
-        int dstW = renderWidth > 0 ? renderWidth : srcW;
-        int dstH = renderHeight > 0 ? renderHeight : srcH;
-        uint8_t* dst = reinterpret_cast<uint8_t*>(dstPixels);
-
-        if (srcW == dstW && srcH == dstH) {
-            libyuv::ARGBAttenuate(frameRGBA, srcW * 4,
-                                  dst, dstStride,
-                                  srcW, srcH);
-        } else {
-            size_t neededSize = srcW * srcH * 4;
-            if (mConversionBuffer.size() < neededSize) {
-                mConversionBuffer.resize(neededSize);
-            }
-
-            libyuv::ARGBAttenuate(frameRGBA, srcW * 4,
-                                  mConversionBuffer.data(), srcW * 4,
-                                  srcW, srcH);
-
-            libyuv::ARGBScale(mConversionBuffer.data(), srcW * 4, srcW, srcH,
-                              dst, dstStride, dstW, dstH,
-                              libyuv::kFilterBilinear);
-        }
-
-        return delay;
-    }
+    int renderNext(void* dstPixels, int dstStride, bool onlyAdvance);
 };
+
+int WebPInstance::renderNext(void* dstPixels, int dstStride, bool onlyAdvance) {
+    if (!dec) return -1;
+
+    uint8_t* frameRGBA = nullptr;
+    int timestamp = 0;
+
+    if (!WebPAnimDecoderGetNext(dec, &frameRGBA, &timestamp)) {
+        WebPAnimDecoderReset(dec);
+        lastTimestamp = 0;
+        frameIndex = 0;
+        if (!WebPAnimDecoderGetNext(dec, &frameRGBA, &timestamp)) return -1;
+    }
+
+    int delay = timestamp - lastTimestamp;
+    if (delay <= 0) delay = 16;
+    lastTimestamp = timestamp;
+
+    if (onlyAdvance) return delay;
+
+    int srcW = info.canvas_width;
+    int srcH = info.canvas_height;
+    int dstW = renderWidth > 0 ? renderWidth : srcW;
+    int dstH = renderHeight > 0 ? renderHeight : srcH;
+    uint8_t* dst = reinterpret_cast<uint8_t*>(dstPixels);
+
+    if (srcW == dstW && srcH == dstH) {
+        // Если размеры совпадают, сразу пишем в Bitmap с аттенюацией
+        libyuv::ARGBAttenuate(frameRGBA, srcW * 4, dst, dstStride, srcW, srcH);
+    } else {
+        // Если нужно масштабирование:
+        // 1. Берем временный буфер из пула
+        uint8_t* scratch = gScratchPool.get(static_cast<size_t>(srcW) * srcH * 4);
+
+        // 2. Делаем аттенюацию в scratch
+        libyuv::ARGBAttenuate(frameRGBA, srcW * 4, scratch, srcW * 4, srcW, srcH);
+
+        // 3. Масштабируем из scratch в целевой Bitmap
+        libyuv::ARGBScale(scratch, srcW * 4, srcW, srcH,
+                          dst, dstStride, dstW, dstH,
+                          libyuv::kFilterLinear);
+    }
+
+    return delay;
+}
 
 #define AVIO_BUFFER_SIZE 4096
 
@@ -537,6 +562,10 @@ public:
     void prepareRendering(int w, int h) {
         renderWidth = w;
         renderHeight = h;
+
+        if (!initialized.load()) {
+            ensureInit();
+        }
     }
 
     bool init() {
@@ -708,16 +737,14 @@ public:
                                 libyuv::I420ToABGR(yplane, ystride, uplane, ustride, vplane, vstride, dstPixels, dstStride, srcW, srcH);
                             }
                         } else {
-                            size_t tmpSize = static_cast<size_t>(srcW) * srcH * 4;
-                            if (tmpBuf.size() < tmpSize) tmpBuf.resize(tmpSize);
+                            uint8_t* scratch = get_thread_scratch(static_cast<size_t>(srcW) * srcH * 4);
 
                             if (aplane) {
-                                libyuv::I420AlphaToABGR(yplane, ystride, uplane, ustride, vplane, vstride, aplane, astride, tmpBuf.data(), srcW * 4, srcW, srcH, 1);
+                                libyuv::I420AlphaToABGR(yplane, ystride, uplane, ustride, vplane, vstride, aplane, astride, scratch, srcW * 4, srcW, srcH, 1);
                             } else {
-                                libyuv::I420ToABGR(yplane, ystride, uplane, ustride, vplane, vstride, tmpBuf.data(), srcW * 4, srcW, srcH);
+                                libyuv::I420ToABGR(yplane, ystride, uplane, ustride, vplane, vstride, scratch, srcW * 4, srcW, srcH);
                             }
-
-                            libyuv::ARGBScale(tmpBuf.data(), srcW * 4, srcW, srcH, dstPixels, dstStride, dstW, dstH, libyuv::kFilterBilinear);
+                            libyuv::ARGBScale(scratch, srcW * 4, srcW, srcH, dstPixels, dstStride, dstW, dstH, libyuv::kFilterLinear);
                         }
 
                         av_packet_unref(packet);
@@ -794,7 +821,6 @@ public:
 
 private:
     std::vector<uint8_t> mBuffer;
-    std::vector<uint8_t> tmpBuf;
     BufferData buffer_data{};
     AVFormatContext* fmt_ctx = nullptr;
     AVIOContext* avio_ctx = nullptr;
@@ -809,6 +835,37 @@ private:
 
     AVPacket* packet = nullptr;
 };
+
+static std::vector<uint8_t> jbyteArrayToVector(JNIEnv* env, jbyteArray array) {
+    if (!array) return {};
+
+    jsize len = env->GetArrayLength(array);
+    std::vector<uint8_t> vec(len);
+    env->GetByteArrayRegion(array, 0, len, reinterpret_cast<jbyte*>(vec.data()));
+
+    return vec;
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_xxcactussell_jni_NativeStickerCore_createWebPHandleFromBytes(
+        JNIEnv* env, jobject, jbyteArray data) {
+
+    auto mData = jbyteArrayToVector(env, data);
+    if (mData.empty()) return 0;
+    auto* instance = new WebPInstance(mData.data(), mData.size());
+    return reinterpret_cast<jlong>(instance);
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_xxcactussell_jni_NativeStickerCore_createVpxHandleFromBytes(
+        JNIEnv* env, jobject, jbyteArray data) {
+
+    auto mData = jbyteArrayToVector(env, data);
+    if (mData.empty()) return 0;
+
+    auto* player = new VpxInstance(mData.data(), mData.size());
+    return reinterpret_cast<jlong>(player);
+}
 
 extern "C" JNIEXPORT jlong JNICALL
 Java_com_xxcactussell_jni_NativeStickerCore_createLottieHandle(
@@ -829,7 +886,7 @@ Java_com_xxcactussell_jni_NativeStickerCore_renderLottieWithCache(
     int h = instance->renderHeight;
     int stride = locker.getInfo().stride;
 
-    std::string key = makeCacheKeyFromHash("lottie", instance->sourceHash, frame, w, h);
+    std::string key = makeFastKey(instance->sourceHash, frame, w, h);
     std::string filePath = cacheFilePathForKey(key);
 
     if (retrieveFromCache(key, reinterpret_cast<uint8_t*>(locker.getPixels()), stride, w, h)) return;
@@ -879,7 +936,7 @@ Java_com_xxcactussell_jni_NativeStickerCore_renderWebPWithCache(
     int h = instance->renderHeight > 0 ? instance->renderHeight : instance->info.canvas_height;
     int stride = locker.getInfo().stride;
 
-    std::string key = makeCacheKeyFromHash("webp", instance->sourceHash, instance->frameIndex, w, h);
+    std::string key = makeFastKey(instance->sourceHash, instance->frameIndex, w, h);
     std::string filePath = cacheFilePathForKey(key);
 
     if (retrieveFromCache(key, reinterpret_cast<uint8_t*>(locker.getPixels()), stride, w, h)) {
@@ -916,41 +973,28 @@ extern "C" JNIEXPORT jint JNICALL
 Java_com_xxcactussell_jni_NativeStickerCore_renderVpxWithCache(
         JNIEnv* env, jobject, jlong ptr, jobject jBitmap) {
     auto* instance = reinterpret_cast<VpxInstance*>(ptr);
+    if (!instance) return -1;
+
     BitmapLocker locker(env, jBitmap);
-    if (!instance || !locker.isValid()) return -1;
+    if (!locker.isValid()) return -1;
 
     int w = instance->renderWidth;
     int h = instance->renderHeight;
-    if (w <= 0 || h <= 0) {
-        int vw = 0, vh = 0;
-        instance->getVideoSize(&vw, &vh);
-        if (vw > 0 && vh > 0) { w = vw; h = vh; } else return -1;
-    }
-
-    int requestedFrameIdx = instance->frameIndex;
     int stride = locker.getInfo().stride;
     uint8_t* pixels = reinterpret_cast<uint8_t*>(locker.getPixels());
 
-    std::string key = makeCacheKeyFromHash("webm", instance->sourceHash, requestedFrameIdx, w, h);
+    int currentIdx = instance->frameIndex;
+
+    std::string key = makeFastKey(instance->sourceHash, currentIdx, w, h);
     std::string filePath = cacheFilePathForKey(key);
 
     if (retrieveFromCache(key, pixels, stride, w, h)) {
-        int delay = instance->renderNextFrameAndGetDelay(nullptr, 0, 0, true);
-        return (delay > 0) ? delay : 40;
+        return instance->renderNextFrameAndGetDelay(nullptr, 0, 0, true);
     }
 
     int delay = instance->renderNextFrameAndGetDelay(pixels, stride, locker.getInfo().height, false);
 
     if (delay >= 0) {
-
-        int renderedFrameIdx = instance->frameIndex - 1;
-        if (renderedFrameIdx < 0) renderedFrameIdx = 0;
-
-        if (renderedFrameIdx != requestedFrameIdx) {
-            key = makeCacheKeyFromHash("webm", instance->sourceHash, renderedFrameIdx, w, h);
-            filePath = cacheFilePathForKey(key);
-        }
-
         storeToCache(key, pixels, stride, w, h, filePath);
     }
     return delay;

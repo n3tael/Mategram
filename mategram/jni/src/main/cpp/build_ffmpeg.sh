@@ -92,7 +92,7 @@ build_one() {
       CC="${TOOLCHAIN}/bin/armv7a-linux-androideabi${API}-clang"
       CXX="${TOOLCHAIN}/bin/armv7a-linux-androideabi${API}-clang++"
       CROSS_PREFIX="${TOOLCHAIN}/bin/arm-linux-androideabi-"
-      EXTRA_CFLAGS="-march=armv7-a -mfloat-abi=softfp -mfpu=neon"
+      EXTRA_CFLAGS="-march=armv7-a -mfloat-abi=softfp -mfpu=neon -mtune=cortex-a8 -O3"
       EXTRA_LDFLAGS="-Wl,--fix-cortex-a8"
       ;;
     arm64-v8a)
@@ -101,6 +101,7 @@ build_one() {
       CC="${TOOLCHAIN}/bin/aarch64-linux-android${API}-clang"
       CXX="${TOOLCHAIN}/bin/aarch64-linux-android${API}-clang++"
       CROSS_PREFIX="${TOOLCHAIN}/bin/aarch64-linux-android-"
+      EXTRA_CFLAGS="-O3 -mtune=generic -march=armv8-a+simd"
       EXTRA_LDFLAGS="-Wl,-z,max-page-size=16384"
       ;;
     x86)
@@ -109,7 +110,7 @@ build_one() {
       CC="${TOOLCHAIN}/bin/i686-linux-android${API}-clang"
       CXX="${TOOLCHAIN}/bin/i686-linux-android${API}-clang++"
       CROSS_PREFIX="${TOOLCHAIN}/bin/i686-linux-android-"
-      EXTRA_CFLAGS="-march=i686 -mtune=intel -mssse3 -mfpmath=sse -m32"
+      EXTRA_CFLAGS="-march=i686 -mtune=intel -mssse3 -mfpmath=sse -m32 -O3"
       ;;
     x86_64)
       ARCH="x86_64"
@@ -117,7 +118,7 @@ build_one() {
       CC="${TOOLCHAIN}/bin/x86_64-linux-android${API}-clang"
       CXX="${TOOLCHAIN}/bin/x86_64-linux-android${API}-clang++"
       CROSS_PREFIX="${TOOLCHAIN}/bin/x86_64-linux-android-"
-      EXTRA_CFLAGS="-march=x86-64 -msse4.2 -mpopcnt -m64 -mtune=intel"
+      EXTRA_CFLAGS="-march=x86-64 -msse4.2 -mpopcnt -m64 -mtune=intel -O3"
       EXTRA_LDFLAGS="-Wl,-z,max-page-size=16384"
       ;;
     *)
@@ -195,8 +196,7 @@ build_one() {
     --disable-devices
     --disable-hwaccels
     
-    # Minimal optimizations
-    --enable-small
+    # Optimization flags - removed --enable-small which reduces performance
     --enable-pic
     --enable-neon
     
@@ -204,7 +204,7 @@ build_one() {
     --enable-pthreads
     --enable-jni
     
-    --extra-cflags="-Os -fPIC -D__ANDROID_API__=${API} -I${INSTALL_DIR}/include ${EXTRA_CFLAGS}"
+    --extra-cflags="-O3 -fPIC -D__ANDROID_API__=${API} -I${INSTALL_DIR}/include -march=armv7-a -mtune=cortex-a8 -fvectorize ${EXTRA_CFLAGS}"
     --extra-ldflags="-L${INSTALL_DIR}/lib ${EXTRA_LDFLAGS}"
   )
 

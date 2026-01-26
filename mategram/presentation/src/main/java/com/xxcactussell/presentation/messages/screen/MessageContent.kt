@@ -35,6 +35,7 @@ import com.xxcactussell.presentation.LocalRootViewModel
 import com.xxcactussell.presentation.messages.model.MessageUiItem
 import com.xxcactussell.presentation.tools.ColumnWidthOf
 import com.xxcactussell.presentation.tools.FormattedTextView
+import com.xxcactussell.presentation.tools.Sticker
 
 @Composable
 fun MessageContent(message: MessageUiItem.MessageItem, onMediaClicked: (Long) -> Unit, onEvent: (Any) -> Unit) {
@@ -80,7 +81,7 @@ fun MessageStickerContent(sticker: Sticker?, size: Dp) {
         val path = file.local.path
 
         if (file.local.isDownloadingCompleted && path.isNotEmpty()) {
-            com.xxcactussell.presentation.tools.Sticker(path, size)
+            Sticker(path, size)
         } else {
             Box(
                 modifier = Modifier

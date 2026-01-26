@@ -8,12 +8,14 @@ import com.xxcactussell.data.impl.FileHelperImpl
 import com.xxcactussell.data.impl.FileRepositoryImpl
 import com.xxcactussell.data.impl.LanguageRepositoryImpl
 import com.xxcactussell.data.impl.MessagesRepositoryImpl
+import com.xxcactussell.data.impl.ProfilesRepositoryImpl
 import com.xxcactussell.data.impl.TdClientManagerImpl
 import com.xxcactussell.repositories.auth.repository.AuthRepository
 import com.xxcactussell.repositories.chats.repository.ChatsRepository
 import com.xxcactussell.repositories.files.repository.FileRepository
 import com.xxcactussell.repositories.localization.repository.LanguageRepository
 import com.xxcactussell.repositories.messages.repository.MessagesRepository
+import com.xxcactussell.repositories.profiles.repository.ProfilesRepository
 import com.xxcactussell.repositories.root.repository.CustomEmojiStickerRepository
 import com.xxcactussell.repositories.utils.FileHelper
 import dagger.Binds
@@ -54,4 +56,8 @@ abstract class RepositoryModule {
     @Singleton
     @Binds
     abstract fun bindFileHelper(impl: FileHelperImpl): FileHelper
+
+    @Singleton
+    @Binds
+    abstract fun bindProfileRepository(impl: ProfilesRepositoryImpl) : ProfilesRepository
 }

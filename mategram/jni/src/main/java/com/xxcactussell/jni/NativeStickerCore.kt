@@ -17,15 +17,17 @@ object NativeStickerCore {
     external fun createLottieHandle(json: String): Long
     external fun destroyLottieHandle(ptr: Long)
     external fun getLottieFrameCount(ptr: Long): Int
-    external fun getLottieFrameRate(ptr: Long): Float // Added: Get Lottie frame rate
+    external fun getLottieFrameRate(ptr: Long): Float
 
     // WebP
-    external fun createWebPHandle(data: ByteBuffer): Long // Changed from ByteArray to ByteBuffer
+    external fun createWebPHandle(data: ByteBuffer): Long
+    external fun createWebPHandleFromBytes(data: ByteArray): Long
     external fun destroyWebPHandle(ptr: Long)
 
     // VP9
     external fun createVpxHandle(data: ByteBuffer): Long
     external fun destroyVpxHandle(ptr: Long)
+    external fun createVpxHandleFromBytes(data: ByteArray): Long
     external fun seekVpxToStart(ptr: Long)
 
     // Size getters

@@ -244,7 +244,8 @@ fun MategramNavigation(
                     entry<RouteProfile> { profile ->
                         ProfileScreen(
                             id = profile.id,
-                            type = profile.type
+                            type = profile.type,
+                            onBackHandled = { backStack.removeLastOrNull() }
                         )
                     }
                 }

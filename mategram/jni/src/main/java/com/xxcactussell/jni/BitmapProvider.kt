@@ -6,10 +6,6 @@ import androidx.core.graphics.createBitmap
 import java.util.ArrayDeque
 import java.util.LinkedHashMap
 
-/**
- * Реализует пул для объектов Bitmap ("Жесткое кэширование"), чтобы минимизировать
- * аллокации памяти и нагрузку на сборщик мусора при рендеринге стикеров.
- */
 object BitmapProvider {
     private const val MAX_BITMAPS_PER_SIZE = 5
     private const val MAX_CACHED_SIZES = 10
@@ -27,10 +23,9 @@ object BitmapProvider {
     fun acquire(width: Int, height: Int, config: Bitmap.Config): Bitmap {
         synchronized(lock) {
             val key = getKey(width, height, config)
-            val queue = pool[key] // Accessing makes it recently used
-            val pooled = queue?.pollFirst()
+            val pooled = pool[key]?.pollFirst()
             if (pooled != null && !pooled.isRecycled) {
-                pooled.eraseColor(Color.TRANSPARENT) // Очищаем Bitmap перед повторным использованием
+                pooled.eraseColor(0)
                 return pooled
             }
         }
