@@ -1,14 +1,10 @@
 package com.xxcactussell.presentation.tools
 
-import android.util.Log
-import android.util.LruCache
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -16,53 +12,12 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.dp
 import com.xxcactussell.jni.StickerAnimScheduler
 import com.xxcactussell.jni.StickerController
+import com.xxcactussell.jni.StickerRegistry
 import com.xxcactussell.jni.VisibilityState
 import com.xxcactussell.utils.PerformanceProfile
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.io.File
-import java.util.zip.GZIPInputStream
 import kotlin.math.roundToInt
-
-private fun decompressGzipIfNeeded(data: ByteArray): ByteArray {
-    return if (data.size >= 2 && data[0] == 0x1f.toByte() && data[1] == 0x8b.toByte()) {
-        try {
-            data.inputStream().use { input ->
-                GZIPInputStream(input).use { gzip ->
-                    gzip.readBytes()
-                }
-            }
-        } catch (e: Exception) { data }
-    } else data
-}
-
-object StickerCache {
-    private const val CACHE_SIZE = 20 * 1024 * 1024
-    private val memoryCache = object : LruCache<String, Any>(CACHE_SIZE) {
-        override fun sizeOf(key: String, value: Any): Int {
-            return when (value) {
-                is ByteArray -> value.size
-                is String -> value.length * 2
-                else -> 1
-            }
-        }
-    }
-    fun get(key: String): Any? = memoryCache.get(key)
-    fun put(key: String, data: Any) { memoryCache.put(key, data) }
-}
-
-private fun calculateStickerDisplaySize(stickerWidth: Int, stickerHeight: Int, targetSize: Dp): Pair<Dp, Dp> {
-    if (stickerWidth <= 0 || stickerHeight <= 0) return targetSize to targetSize
-    val aspectRatio = stickerWidth.toFloat() / stickerHeight.toFloat()
-    return if (aspectRatio > 1f) {
-        targetSize to (targetSize / aspectRatio)
-    } else {
-        (targetSize * aspectRatio) to targetSize
-    }
-}
 
 @Composable
 fun Sticker(
@@ -70,79 +25,35 @@ fun Sticker(
     size: Dp,
     modifier: Modifier = Modifier
 ) {
-    var stickerData by remember(path) { mutableStateOf<Any?>(null) }
-
-    LaunchedEffect(path) {
-        stickerData = withContext(Dispatchers.IO) {
-            StickerCache.get(path) ?: run {
-                try {
-                    val file = File(path)
-                    if (!file.exists()) return@withContext null
-
-                    val bytes = file.readBytes()
-                    val data: Any = when {
-                        path.endsWith(".tgs", ignoreCase = true) ->
-                            decompressGzipIfNeeded(bytes).toString(Charsets.UTF_8)
-                        path.endsWith(".webp", ignoreCase = true) ||
-                                path.endsWith(".webm", ignoreCase = true) -> bytes
-                        else -> return@withContext null
-                    }
-                    StickerCache.put(path, data)
-                    data
-                } catch (e: Exception) {
-                    Log.e("Sticker", "Error loading sticker: $path", e)
-                    null
-                }
-            }
-        }
-    }
-
-    val targetSizePx = with(LocalDensity.current) { size.toPx().roundToInt() }
     val density = LocalDensity.current
+    val targetSizePx = with(density) { size.toPx().roundToInt() }
+    val sourceHash = remember(path) { path.hashCode().toString() }
 
-    val controller = remember(stickerData, targetSizePx) {
-        val data = stickerData ?: return@remember null
-        val type = when {
-            data is String -> StickerController.StickerType.LOTTIE
-            path.endsWith(".webp", ignoreCase = true) -> StickerController.StickerType.WEBP
-            path.endsWith(".webm", ignoreCase = true) -> StickerController.StickerType.VP9
-            else -> return@remember null
-        }
-        try {
-            StickerController(type, data, targetSizePx, targetSizePx)
-        } catch (e: Exception) {
-            Log.e("Sticker", "Failed to create controller: $path", e)
-            null
-        }
+    val controller = remember(sourceHash, targetSizePx) {
+        StickerRegistry.acquire(path, sourceHash, targetSizePx, targetSizePx)
     }
 
-    DisposableEffect(controller) {
-        onDispose { controller?.close() }
+    DisposableEffect(sourceHash) {
+        onDispose { StickerRegistry.release(sourceHash) }
     }
 
     if (controller != null) {
-        val (width, height) = remember(controller.stickerWidth, controller.stickerHeight, size) {
+        val displaySize = remember(controller.stickerWidth, controller.stickerHeight, size) {
             calculateStickerDisplaySize(controller.stickerWidth, controller.stickerHeight, size)
         }
 
         StickerPlayer(
             controller = controller,
             modifier = modifier
-                .size(width, height)
-                .onGloballyPositioned { coordinates ->
-                    val yInWindow = coordinates.positionInWindow().y
-                    val screenHeight = with(density) { 2000.dp.toPx() }
-
-                    val margin = 500f
-
+                .size(displaySize.first, displaySize.second)
+                .onGloballyPositioned { coords ->
+                    val y = coords.positionInWindow().y
+                    val screenHeight = 2500f
                     val state = when {
-                        yInWindow < -margin || yInWindow > screenHeight + margin ->
-                            VisibilityState.HIDDEN
-                        yInWindow !in 0.0..screenHeight.toDouble() ->
-                            VisibilityState.PREPARING
+                        y < -500f || y > screenHeight + 500f -> VisibilityState.HIDDEN
+                        y !in 0.0..screenHeight.toDouble() -> VisibilityState.PREPARING
                         else -> VisibilityState.VISIBLE
                     }
-
                     StickerAnimScheduler.updateState(controller, state)
                 }
         )
@@ -156,16 +67,18 @@ fun StickerPlayer(
     controller: StickerController,
     modifier: Modifier = Modifier
 ) {
-    val frameToggle = remember { mutableStateOf(false) }
+    var frameTick by remember { mutableStateOf(0L) }
     val imageBitmap = remember(controller) { controller.bitmap.asImageBitmap() }
 
     DisposableEffect(controller) {
-        controller.onFrameReady = { frameToggle.value = !frameToggle.value }
-        onDispose { }
+        controller.onFrameReady = {
+            frameTick++
+        }
+        onDispose { controller.onFrameReady = null }
     }
 
     Canvas(modifier = modifier) {
-        frameToggle.value
+        @Suppress("unused", "UnusedVariable") val tick = frameTick
 
         drawImage(
             image = imageBitmap,
@@ -173,4 +86,10 @@ fun StickerPlayer(
             filterQuality = if (PerformanceProfile.isLowEnd) FilterQuality.None else FilterQuality.Low
         )
     }
+}
+
+private fun calculateStickerDisplaySize(w: Int, h: Int, target: Dp): Pair<Dp, Dp> {
+    if (w <= 0 || h <= 0) return target to target
+    val aspect = w.toFloat() / h
+    return if (aspect > 1f) target to (target / aspect) else (target * aspect) to target
 }

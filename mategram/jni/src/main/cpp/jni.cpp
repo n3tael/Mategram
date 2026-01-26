@@ -24,6 +24,14 @@
 #include "webp/decode.h"
 #include "webp/demux.h"
 #include "libyuv.h"
+#include "NativeBufferPool.h"
+#include "NativeQueueManager.h"
+
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <zstd/lib/zstd.h>
+#include <unordered_set>
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -37,10 +45,63 @@ extern "C" {
 #include <vpx/vpx_codec.h>
 #include <vpx/vpx_decoder.h>
 #include <vpx/vp8dx.h>
+#include <sys/stat.h>
 
 #define LOG_TAG "StickerRenderJNI"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
+
+
+struct CacheHeader {
+    uint32_t magic = 0x4D4348;
+    uint16_t version = 1;
+    uint16_t width;
+    uint16_t height;
+    uint32_t stride;
+    uint32_t frameCount;
+    uint8_t compressionType;
+};
+
+
+static std::mutex gRegistryMtx;
+static std::unordered_set<jlong> gAliveInstances;
+
+void registerPtr(jlong ptr) {
+    std::lock_guard<std::mutex> lk(gRegistryMtx);
+    gAliveInstances.insert(ptr);
+}
+
+void unregisterPtr(jlong ptr) {
+    std::lock_guard<std::mutex> lk(gRegistryMtx);
+    gAliveInstances.erase(ptr);
+}
+
+bool isPtrAlive(jlong ptr) {
+    std::lock_guard<std::mutex> lk(gRegistryMtx);
+    return gAliveInstances.find(ptr) != gAliveInstances.end();
+}
+
+static JavaVM* gJavaVM = nullptr;
+
+extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
+    gJavaVM = vm;
+    return JNI_VERSION_1_6;
+}
+
+void notifyFrameReady(jobject listenerRef, int delay) {
+    JNIEnv* env;
+    bool attached = false;
+    if (gJavaVM->GetEnv((void**)&env, JNI_VERSION_1_6) == JNI_EDETACHED) {
+        gJavaVM->AttachCurrentThread(&env, nullptr);
+        attached = true;
+    }
+
+    jclass clazz = env->GetObjectClass(listenerRef);
+    jmethodID method = env->GetMethodID(clazz, "onNativeFrameReady", "(I)V");
+    env->CallVoidMethod(listenerRef, method, delay);
+
+    if (attached) gJavaVM->DetachCurrentThread();
+}
 
 
 class ScratchBufferPool {
@@ -366,14 +427,19 @@ private:
 
 class LottieInstance {
 public:
+    std::recursive_mutex instanceMutex;
+    bool isDestroyed = false;
+
     std::unique_ptr<rlottie::Animation> animation{};
     std::unique_ptr<uint32_t> renderBuffer;
     std::string sourceHash;
+    std::atomic<int64_t> lastLottieDurationUs{0};
     int width = 0;
     int height = 0;
     int renderWidth = 0;
     int renderHeight = 0;
     long long instanceId = 0;
+
     explicit LottieInstance(const std::string& json) {
         static std::atomic<long long> s_counter{1};
         instanceId = s_counter.fetch_add(1, std::memory_order_relaxed);
@@ -388,6 +454,7 @@ public:
             height = static_cast<int>(h);
         }
     }
+
     void prepareRendering(int w, int h) {
         renderWidth = w;
         renderHeight = h;
@@ -398,30 +465,36 @@ public:
             }
         }
     }
+
     void renderToBuffer(int frame) const {
         if (!animation || !renderBuffer) return;
         rlottie::Surface surface(renderBuffer.get(), renderWidth, renderHeight, renderWidth * 4);
         animation->renderSync(frame, surface, true);
     }
-    void render(int frame, void* dstPixels, int dstStride) const {
-        if (!animation || !renderBuffer) return;
+
+    void render(int frame, void* dstPixels, int dstStride) {
+        auto start = std::chrono::high_resolution_clock::now();
+
         renderToBuffer(frame);
+
         const auto* src = reinterpret_cast<const uint8_t*>(renderBuffer.get());
-        int srcStride = renderWidth * 4;
-        uint8_t* dst = reinterpret_cast<uint8_t*>(dstPixels);
-        if (srcStride == dstStride) {
-            size_t totalSize = static_cast<size_t>(renderWidth) * renderHeight * 4;
-            libyuv::ARGBToABGR(src, srcStride, dst, dstStride, renderWidth, renderHeight);
-        } else {
-            libyuv::ARGBToABGR(src, srcStride, dst, dstStride, renderWidth, renderHeight);
-        }
+        libyuv::ARGBToABGR(src, renderWidth * 4, reinterpret_cast<uint8_t*>(dstPixels), dstStride, renderWidth, renderHeight);
+
+        auto end = std::chrono::high_resolution_clock::now();
+
+        int64_t duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        lastLottieDurationUs.store(duration, std::memory_order_relaxed);
     }
+
     int totalFrames() const { return animation ? animation->totalFrame() : 0; }
     float frameRate() const { return animation ? animation->frameRate() : 0.0f; }
 };
 
 class WebPInstance {
 public:
+    std::recursive_mutex instanceMutex;
+    bool isDestroyed = false;
+
     WebPAnimDecoder* dec = nullptr;
     WebPAnimInfo info{};
     std::vector<uint8_t> mData;
@@ -487,17 +560,10 @@ int WebPInstance::renderNext(void* dstPixels, int dstStride, bool onlyAdvance) {
     uint8_t* dst = reinterpret_cast<uint8_t*>(dstPixels);
 
     if (srcW == dstW && srcH == dstH) {
-        // Если размеры совпадают, сразу пишем в Bitmap с аттенюацией
         libyuv::ARGBAttenuate(frameRGBA, srcW * 4, dst, dstStride, srcW, srcH);
     } else {
-        // Если нужно масштабирование:
-        // 1. Берем временный буфер из пула
         uint8_t* scratch = gScratchPool.get(static_cast<size_t>(srcW) * srcH * 4);
-
-        // 2. Делаем аттенюацию в scratch
         libyuv::ARGBAttenuate(frameRGBA, srcW * 4, scratch, srcW * 4, srcW, srcH);
-
-        // 3. Масштабируем из scratch в целевой Bitmap
         libyuv::ARGBScale(scratch, srcW * 4, srcW, srcH,
                           dst, dstStride, dstW, dstH,
                           libyuv::kFilterLinear);
@@ -540,6 +606,9 @@ static int64_t seek_packet(void *opaque, int64_t offset, int whence) {
 
 class VpxInstance {
 public:
+    std::recursive_mutex instanceMutex;
+    bool isDestroyed = false;
+
     std::string sourceHash;
     int renderWidth = 0;
     int renderHeight = 0;
@@ -547,6 +616,7 @@ public:
     std::atomic<bool> initialized{false};
     int videoStreamIndex = -1;
     int frameIndex = 0;
+    std::atomic<int64_t> lastDecodeDurationUs{0};
 
     VpxInstance(const uint8_t* data, size_t size) {
         uint64_t h64 = fnv1a_hash64(data, size);
@@ -624,6 +694,14 @@ public:
             vpx_alpha_initialized = true;
         }
 
+        if (vpx_initialized) {
+            vpx_codec_control(&vpx_ctx, VP9_DECODE_SVC_SPATIAL_LAYER, 0);
+        }
+
+        if (codecpar->codec_id == AV_CODEC_ID_VP9) {
+            vpx_codec_control(&vpx_ctx, VP9_SET_SKIP_LOOP_FILTER, 1);
+        }
+
         if (codecpar->width > 0 && codecpar->height > 0) {
             videoWidth = codecpar->width;
             videoHeight = codecpar->height;
@@ -639,10 +717,14 @@ public:
         return initialized.load(std::memory_order_acquire);
     }
 
-    int renderNextFrameAndGetDelay(uint8_t* dstPixels, int dstStride, int dstBitmapHeight, bool onlyAdvance) {
+    int renderNextFrameAndGetDelay(uint8_t* dstPixels, int dstStride, bool onlyAdvance) {
         if (!ensureInit()) return -1;
         if (!onlyAdvance && !dstPixels) return -1;
         if (videoStreamIndex < 0 || !fmt_ctx) return -1;
+
+        if (isDestroyed || !fmt_ctx) return -1;
+
+        auto start = std::chrono::high_resolution_clock::now();
         for (int retry = 0; retry < 2; ++retry) {
             int ret;
             while ((ret = av_read_frame(fmt_ctx, packet)) >= 0) {
@@ -749,6 +831,10 @@ public:
 
                         av_packet_unref(packet);
                         frameIndex++;
+                        auto end = std::chrono::high_resolution_clock::now();
+                        int64_t duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+                        lastDecodeDurationUs.store(duration, std::memory_order_relaxed);
+
                         return delay;
                     }
                     av_packet_unref(packet);
@@ -802,18 +888,18 @@ public:
     }
 
     void release() {
+        std::lock_guard<std::recursive_mutex> lock(instanceMutex);
+        if (isDestroyed) return;
+        isDestroyed = true;
+
+        if (fmt_ctx) {
+            avformat_close_input(&fmt_ctx);
+            fmt_ctx = nullptr;
+        }
         if (packet) { av_packet_free(&packet); packet = nullptr; }
-        if (vpx_initialized) {
-            vpx_codec_destroy(&vpx_ctx);
-            vpx_initialized = false;
-        }
-        if (vpx_alpha_initialized) {
-            vpx_codec_destroy(&vpx_alpha_ctx);
-            vpx_alpha_initialized = false;
-        }
-        if (fmt_ctx) { avformat_close_input(&fmt_ctx); fmt_ctx = nullptr; }
+        if (vpx_initialized) { vpx_codec_destroy(&vpx_ctx); vpx_initialized = false; }
         if (avio_ctx) {
-            av_freep(&avio_ctx->buffer);
+            if (avio_ctx->buffer) av_freep(&avio_ctx->buffer);
             avio_context_free(&avio_ctx);
             avio_ctx = nullptr;
         }
@@ -847,33 +933,36 @@ static std::vector<uint8_t> jbyteArrayToVector(JNIEnv* env, jbyteArray array) {
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_xxcactussell_jni_NativeStickerCore_createWebPHandleFromBytes(
-        JNIEnv* env, jobject, jbyteArray data) {
-
+Java_com_xxcactussell_jni_NativeStickerCore_createWebPHandleFromBytes(JNIEnv* env, jobject, jbyteArray data) {
     auto mData = jbyteArrayToVector(env, data);
     if (mData.empty()) return 0;
     auto* instance = new WebPInstance(mData.data(), mData.size());
-    return reinterpret_cast<jlong>(instance);
+
+    jlong ptr = reinterpret_cast<jlong>(instance);
+    registerPtr(ptr);
+    return ptr;
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_xxcactussell_jni_NativeStickerCore_createVpxHandleFromBytes(
-        JNIEnv* env, jobject, jbyteArray data) {
-
+Java_com_xxcactussell_jni_NativeStickerCore_createVpxHandleFromBytes(JNIEnv* env, jobject, jbyteArray data) {
     auto mData = jbyteArrayToVector(env, data);
     if (mData.empty()) return 0;
-
     auto* player = new VpxInstance(mData.data(), mData.size());
-    return reinterpret_cast<jlong>(player);
+
+    jlong ptr = reinterpret_cast<jlong>(player);
+    registerPtr(ptr);
+    return ptr;
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_xxcactussell_jni_NativeStickerCore_createLottieHandle(
-        JNIEnv* env, jobject, jstring jsonStr) {
+Java_com_xxcactussell_jni_NativeStickerCore_createLottieHandle(JNIEnv* env, jobject, jstring jsonStr) {
     const char* json = env->GetStringUTFChars(jsonStr, nullptr);
     auto* instance = new LottieInstance(std::string(json));
     env->ReleaseStringUTFChars(jsonStr, json);
-    return reinterpret_cast<jlong>(instance);
+
+    jlong ptr = reinterpret_cast<jlong>(instance);
+    registerPtr(ptr);
+    return ptr;
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -896,9 +985,14 @@ Java_com_xxcactussell_jni_NativeStickerCore_renderLottieWithCache(
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_xxcactussell_jni_NativeStickerCore_destroyLottieHandle(
-        JNIEnv* env, jobject, jlong ptr) {
-    delete reinterpret_cast<LottieInstance*>(ptr);
+Java_com_xxcactussell_jni_NativeStickerCore_destroyLottieHandle(JNIEnv* env, jobject, jlong ptr) {
+    unregisterPtr(ptr);
+    auto* instance = reinterpret_cast<LottieInstance*>(ptr);
+    if (instance) {
+        std::lock_guard<std::recursive_mutex> lock(instance->instanceMutex);
+        instance->isDestroyed = true;
+        delete instance;
+    }
 }
 
 extern "C" JNIEXPORT jint JNICALL
@@ -916,13 +1010,15 @@ Java_com_xxcactussell_jni_NativeStickerCore_getLottieFrameRate(
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_xxcactussell_jni_NativeStickerCore_createWebPHandle(
-        JNIEnv* env, jobject, jobject byteBuffer) {
+Java_com_xxcactussell_jni_NativeStickerCore_createWebPHandle(JNIEnv* env, jobject, jobject byteBuffer) {
     const auto* data = static_cast<const uint8_t*>(env->GetDirectBufferAddress(byteBuffer));
     jlong len = env->GetDirectBufferCapacity(byteBuffer);
     if (data == nullptr || len <= 0) return 0;
     auto* instance = new WebPInstance(data, static_cast<size_t>(len));
-    return reinterpret_cast<jlong>(instance);
+
+    jlong ptr = reinterpret_cast<jlong>(instance);
+    registerPtr(ptr);
+    return ptr;
 }
 
 extern "C" JNIEXPORT jint JNICALL
@@ -955,9 +1051,14 @@ Java_com_xxcactussell_jni_NativeStickerCore_renderWebPWithCache(
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_xxcactussell_jni_NativeStickerCore_destroyWebPHandle(
-        JNIEnv* env, jobject, jlong ptr) {
-    delete reinterpret_cast<WebPInstance*>(ptr);
+Java_com_xxcactussell_jni_NativeStickerCore_destroyWebPHandle(JNIEnv* env, jobject, jlong ptr) {
+    unregisterPtr(ptr);
+    auto* instance = reinterpret_cast<WebPInstance*>(ptr);
+    if (instance) {
+        std::lock_guard<std::recursive_mutex> lock(instance->instanceMutex);
+        instance->isDestroyed = true;
+        delete instance;
+    }
 }
 
 extern "C" JNIEXPORT jlong JNICALL
@@ -966,7 +1067,10 @@ Java_com_xxcactussell_jni_NativeStickerCore_createVpxHandle(JNIEnv *env, jobject
     jlong len = env->GetDirectBufferCapacity(byteBuffer);
     if (data == nullptr || len <= 0) return 0;
     auto* player = new VpxInstance(data, static_cast<size_t>(len));
-    return reinterpret_cast<jlong>(player);
+
+    jlong ptr = reinterpret_cast<jlong>(player);
+    registerPtr(ptr);
+    return ptr;
 }
 
 extern "C" JNIEXPORT jint JNICALL
@@ -989,10 +1093,10 @@ Java_com_xxcactussell_jni_NativeStickerCore_renderVpxWithCache(
     std::string filePath = cacheFilePathForKey(key);
 
     if (retrieveFromCache(key, pixels, stride, w, h)) {
-        return instance->renderNextFrameAndGetDelay(nullptr, 0, 0, true);
+        return instance->renderNextFrameAndGetDelay(nullptr, 0, true);
     }
 
-    int delay = instance->renderNextFrameAndGetDelay(pixels, stride, locker.getInfo().height, false);
+    int delay = instance->renderNextFrameAndGetDelay(pixels, stride, false);
 
     if (delay >= 0) {
         storeToCache(key, pixels, stride, w, h, filePath);
@@ -1002,7 +1106,12 @@ Java_com_xxcactussell_jni_NativeStickerCore_renderVpxWithCache(
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_xxcactussell_jni_NativeStickerCore_destroyVpxHandle(JNIEnv*, jobject, jlong ptr) {
-    delete reinterpret_cast<VpxInstance*>(ptr);
+    unregisterPtr(ptr);
+    auto* instance = reinterpret_cast<VpxInstance*>(ptr);
+    if (instance) {
+        instance->release();
+        delete instance;
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -1057,4 +1166,222 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_xxcactussell_jni_NativeStickerCore_prepareVpxRendering(JNIEnv*, jobject, jlong ptr, jint w, jint h) {
     auto *instance = reinterpret_cast<VpxInstance*>(ptr);
     if (instance) instance->prepareRendering(w, h);
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_com_xxcactussell_jni_NativeStickerCore_acquireNativeBuffer(JNIEnv* env, jobject, jint w, jint h, jlongArray outPtr) {
+    NativeBuffer* nb = gNativePool.acquire(w, h);
+    if (!nb) return nullptr;
+
+    jlong* ptrArr = env->GetLongArrayElements(outPtr, nullptr);
+    ptrArr[0] = reinterpret_cast<jlong>(nb);
+    env->ReleaseLongArrayElements(outPtr, ptrArr, 0);
+
+    return AHardwareBuffer_toHardwareBuffer(env, nb->hwBuffer);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xxcactussell_jni_NativeStickerCore_releaseNativeBuffer(JNIEnv*, jobject, jlong ptr) {
+    gNativePool.release(reinterpret_cast<NativeBuffer*>(ptr));
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xxcactussell_jni_NativeStickerCore_renderVpxDirect(JNIEnv* env, jobject, jlong playerPtr, jlong bufferPtr) {
+    auto* instance = reinterpret_cast<VpxInstance*>(playerPtr);
+    auto* nb = reinterpret_cast<NativeBuffer*>(bufferPtr);
+    if (!instance || !nb) return -1;
+
+    nb->lock();
+    int delay = instance->renderNextFrameAndGetDelay(
+            reinterpret_cast<uint8_t*>(nb->mapping),
+            nb->stride,
+            false
+    );
+    nb->unlock();
+
+    return delay;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xxcactussell_jni_NativeStickerCore_renderLottieDirect(JNIEnv* env, jobject, jlong ptr, jint frame, jlong bufferPtr) {
+    auto* instance = reinterpret_cast<LottieInstance*>(ptr);
+    auto* nb = reinterpret_cast<NativeBuffer*>(bufferPtr);
+    if (!instance || !nb) return -1;
+
+    int w = instance->renderWidth;
+    int h = instance->renderHeight;
+    std::string key = makeFastKey(instance->sourceHash, frame, w, h);
+
+    nb->lock();
+    uint8_t* dst = reinterpret_cast<uint8_t*>(nb->mapping);
+    int stride = nb->stride;
+
+    if (!retrieveFromCache(key, dst, stride, w, h)) {
+        instance->render(frame, dst, stride);
+        storeToCache(key, dst, stride, w, h, cacheFilePathForKey(key));
+    }
+
+    nb->unlock();
+    return 0;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xxcactussell_jni_NativeStickerCore_renderWebPDirect(JNIEnv* env, jobject, jlong ptr, jlong bufferPtr) {
+    auto* instance = reinterpret_cast<WebPInstance*>(ptr);
+    auto* nb = reinterpret_cast<NativeBuffer*>(bufferPtr);
+    if (!instance || !nb) return -1;
+
+    int w = instance->renderWidth > 0 ? instance->renderWidth : instance->info.canvas_width;
+    int h = instance->renderHeight > 0 ? instance->renderHeight : instance->info.canvas_height;
+
+    std::string key = makeFastKey(instance->sourceHash, instance->frameIndex, w, h);
+
+    nb->lock();
+    uint8_t* dst = reinterpret_cast<uint8_t*>(nb->mapping);
+    int stride = nb->stride;
+
+    int delay;
+    if (retrieveFromCache(key, dst, stride, w, h)) {
+        delay = instance->renderNext(nullptr, 0, true);
+    } else {
+        delay = instance->renderNext(dst, stride, false);
+        if (delay > 0) {
+            storeToCache(key, dst, stride, w, h, cacheFilePathForKey(key));
+        }
+    }
+
+    instance->frameIndex++;
+    nb->unlock();
+    return (delay > 0) ? delay : 40;
+}
+
+bool fileExists(const std::string& name) {
+    struct stat buffer;
+    return (stat(name.c_str(), &buffer) == 0);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xxcactussell_jni_NativeStickerCore_renderAsync(JNIEnv* env, jobject, jint type, jlong ptr, jlong bufPtr, jint frame, jstring cachePath, jobject listener) {
+    jobject listenerGlobal = env->NewGlobalRef(listener);
+    const char* cPath = env->GetStringUTFChars(cachePath, nullptr);
+    std::string path(cPath ? cPath : "");
+    if (cPath) env->ReleaseStringUTFChars(cachePath, cPath);
+
+    gQueueManager.enqueue(StickerPriority::STICKER, [type, ptr, bufPtr, frame, path, listenerGlobal]() {
+        if (!isPtrAlive(ptr)) {
+            JNIEnv* localEnv;
+            if (gJavaVM->AttachCurrentThread(&localEnv, nullptr) == JNI_OK) {
+                localEnv->DeleteGlobalRef(listenerGlobal);
+                gJavaVM->DetachCurrentThread();
+            }
+            return;
+        }
+
+        JNIEnv* localEnv;
+        if (gJavaVM->AttachCurrentThread(&localEnv, nullptr) != JNI_OK) return;
+
+        auto* nb = reinterpret_cast<NativeBuffer*>(bufPtr);
+        int delay = -1;
+
+        if (nb && nb->hwBuffer) {
+            AHardwareBuffer_Desc desc;
+            AHardwareBuffer_describe(nb->hwBuffer, &desc);
+
+            uint32_t width = desc.width;
+            uint32_t height = desc.height;
+            int byteStride = desc.stride * 4;
+            size_t expectedSize = byteStride * height;
+
+            void* pixels = nullptr;
+            if (AHardwareBuffer_lock(nb->hwBuffer, AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY, -1, nullptr, &pixels) == 0) {
+                uint8_t* dst = reinterpret_cast<uint8_t*>(pixels);
+                bool loadedFromCache = false;
+
+                if (!path.empty() && fileExists(path)) {
+                    int fd = open(path.c_str(), O_RDONLY);
+                    if (fd >= 0) {
+                        struct stat st;
+                        if (fstat(fd, &st) == 0 && st.st_size > sizeof(CacheHeader)) {
+                            void* mmapped = mmap(nullptr, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+                            if (mmapped != MAP_FAILED) {
+                                CacheHeader* header = (CacheHeader*)mmapped;
+                                // Проверяем магическое число и соответствие ширины
+                                if (header->magic == 0x4D4348 && header->width == width) {
+                                    if (!ZSTD_isError(ZSTD_decompress(dst, expectedSize, (uint8_t*)mmapped + sizeof(CacheHeader), st.st_size - sizeof(CacheHeader)))) {
+                                        loadedFromCache = true;
+                                        delay = (type == 0) ? 0 : 33;
+                                    }
+                                }
+                                munmap(mmapped, st.st_size);
+                            }
+                        }
+                        close(fd);
+                    }
+                }
+
+                if (!loadedFromCache) {
+                    if (type == 0) { // Lottie
+                        auto* inst = reinterpret_cast<LottieInstance*>(ptr);
+                        std::lock_guard<std::recursive_mutex> lock(inst->instanceMutex);
+                        if (!inst->isDestroyed) {
+                            inst->render(frame, dst, byteStride);
+                            delay = 0;
+                        }
+                    } else if (type == 1) { // WebP
+                        auto* inst = reinterpret_cast<WebPInstance*>(ptr);
+                        std::lock_guard<std::recursive_mutex> lock(inst->instanceMutex);
+                        if (!inst->isDestroyed) {
+                            delay = inst->renderNext(dst, byteStride, false);
+                            inst->frameIndex++;
+                        }
+                    } else if (type == 2) { // VPX
+                        auto* inst = reinterpret_cast<VpxInstance*>(ptr);
+                        std::lock_guard<std::recursive_mutex> lock(inst->instanceMutex);
+                        if (!inst->isDestroyed) {
+                            delay = inst->renderNextFrameAndGetDelay(dst, byteStride, false);
+                        }
+                    }
+
+                    if (delay >= 0 && !path.empty()) {
+                        std::vector<uint8_t> snapshot(dst, dst + expectedSize);
+                        gQueueManager.enqueue(StickerPriority::EMOJI, [path, snapshot, width, height, byteStride]() {
+                            size_t cBound = ZSTD_compressBound(snapshot.size());
+                            std::vector<uint8_t> cBuff(cBound);
+                            size_t cSize = ZSTD_compress(cBuff.data(), cBound, snapshot.data(), snapshot.size(), 3);
+                            if (!ZSTD_isError(cSize)) {
+                                std::ofstream ofs(path, std::ios::binary);
+                                CacheHeader hdr;
+                                hdr.width = (uint16_t)width;
+                                hdr.height = (uint16_t)height;
+                                hdr.stride = (uint32_t)(byteStride / 4);
+                                ofs.write((char*)&hdr, sizeof(CacheHeader));
+                                ofs.write((char*)cBuff.data(), cSize);
+                            }
+                        });
+                    }
+                }
+
+                AHardwareBuffer_unlock(nb->hwBuffer, nullptr);
+            }
+        }
+
+        if (delay >= 0) {
+            notifyFrameReady(listenerGlobal, delay);
+        }
+
+        localEnv->DeleteGlobalRef(listenerGlobal);
+        gJavaVM->DetachCurrentThread();
+    });
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_xxcactussell_jni_NativeStickerCore_getLastDecodeDurationUs(JNIEnv*, jobject, jint type, jlong ptr) {
+    if (type == 0) { // Lottie
+        auto* instance = reinterpret_cast<LottieInstance*>(ptr);
+        return instance ? instance->lastLottieDurationUs.load(std::memory_order_relaxed) : 0;
+    } else if (type == 2) { // VPX
+        auto* instance = reinterpret_cast<VpxInstance*>(ptr);
+        return instance ? instance->lastDecodeDurationUs.load(std::memory_order_relaxed) : 0;
+    }
+    return 0;
 }

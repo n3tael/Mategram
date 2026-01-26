@@ -13,9 +13,21 @@ set(STUB_DIR "${CMAKE_HOME_DIRECTORY}/stub")
 set(MATEGRAM_ROOT_DIR "${CMAKE_HOME_DIRECTORY}/../../../../..")
 set(UTILS_DIR "${THIRDPARTY_DIR}/jni-utils")
 
+set(ZSTD_LIB_DIR ${THIRDPARTY_DIR}/zstd/lib)
 
 set(ENABLE_TG_CALLS no)
 set(USE_WEBP yes)
+
+file(GLOB ZSTD_SOURCES
+        "${ZSTD_LIB_DIR}/common/*.c"
+        "${ZSTD_LIB_DIR}/compress/*.c"
+        "${ZSTD_LIB_DIR}/decompress/*.c"
+        "${ZSTD_LIB_DIR}/zstd.h"
+)
+
+add_library(zstd STATIC ${ZSTD_SOURCES})
+target_compile_definitions(zstd PUBLIC ZSTD_DISABLE_ASM)
+target_include_directories(zstd PUBLIC ${ZSTD_LIB_DIR})
 
 
 if (${ANDROID_ABI} STREQUAL "x86_64" OR ${ANDROID_ABI} STREQUAL "arm64-v8a")
@@ -176,8 +188,10 @@ target_link_libraries(${NATIVE_LIB}
         yuv
         vpx
         rlottie
+        zstd
         lz4
 )
+
 if (${USE_WEBP})
     target_link_libraries(${NATIVE_LIB} webpdecoder_static)
 else()

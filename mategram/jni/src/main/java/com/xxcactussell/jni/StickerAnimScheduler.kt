@@ -33,8 +33,16 @@ object StickerAnimScheduler {
                     continue
                 }
 
-                if (state != VisibilityState.HIDDEN) {
-                    sticker.tryDecodeNextFrame(now, decoderScope)
+                val snapshot = synchronized(activeStickers) { activeStickers.entries.toList() }
+
+                val sortedStickers = snapshot.sortedByDescending { it.value == VisibilityState.VISIBLE }
+
+                sortedStickers.forEach { (sticker, state) ->
+                    if (state == VisibilityState.VISIBLE) {
+                        sticker.tryDecodeNextFrame(now, decoderScope)
+                    } else if (state == VisibilityState.PREPARING && now % 32 < 8) {
+                        sticker.tryDecodeNextFrame(now, decoderScope)
+                    }
                 }
 
                 if (state == VisibilityState.VISIBLE && sticker.checkNewFrameAvailable()) {

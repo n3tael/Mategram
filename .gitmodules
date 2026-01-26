@@ -19,3 +19,6 @@
 [submodule "mategram/jni/src/main/cpp/third_party/rlottie"]
 	path = mategram/jni/src/main/cpp/third_party/rlottie
 	url = https://github.com/Samsung/rlottie.git
+[submodule "mategram/jni/src/main/cpp/third_party/zstd"]
+	path = mategram/jni/src/main/cpp/third_party/zstd
+	url = https://github.com/facebook/zstd.git
