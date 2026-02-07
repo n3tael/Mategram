@@ -12,17 +12,14 @@ import androidx.work.workDataOf
 import com.xxcactussell.domain.Chat
 import com.xxcactussell.domain.ChatMemberStatusAdministrator
 import com.xxcactussell.domain.ChatMemberStatusCreator
-import com.xxcactussell.domain.ChatType
 import com.xxcactussell.domain.ChatTypeBasicGroup
 import com.xxcactussell.domain.ChatTypePrivate
 import com.xxcactussell.domain.ChatTypeSecret
 import com.xxcactussell.domain.ChatTypeSupergroup
 import com.xxcactussell.domain.InputMessageContent
-import com.xxcactussell.domain.MessageSource
 import com.xxcactussell.domain.MessageSourceChatHistory
 import com.xxcactussell.domain.ReactionType
 import com.xxcactussell.domain.User
-import com.xxcactussell.domain.UserStatus
 import com.xxcactussell.domain.UserStatusEmpty
 import com.xxcactussell.domain.UserStatusLastMonth
 import com.xxcactussell.domain.UserStatusLastWeek
@@ -30,24 +27,8 @@ import com.xxcactussell.domain.UserStatusOffline
 import com.xxcactussell.domain.UserStatusOnline
 import com.xxcactussell.domain.UserStatusRecently
 import com.xxcactussell.domain.toChatPhotoInfo
-import com.xxcactussell.repositories.chats.model.ChatStatus
-import com.xxcactussell.repositories.chats.repository.ObserveChatStatusesUseCase
-import com.xxcactussell.repositories.files.repository.CancelDownloadFileUseCase
-import com.xxcactussell.repositories.messages.model.MessageListItem
-import com.xxcactussell.repositories.messages.model.getDate
-import com.xxcactussell.repositories.messages.repository.AddReactionToMessageUseCase
-import com.xxcactussell.repositories.messages.repository.BuildMessageContentUseCase
-import com.xxcactussell.repositories.messages.repository.CloseChatUseCase
-import com.xxcactussell.repositories.messages.repository.GetChatActionFlowUseCase
-import com.xxcactussell.repositories.messages.repository.GetChatFlowUseCase
-import com.xxcactussell.repositories.messages.repository.GetUserUseCase
-import com.xxcactussell.repositories.messages.repository.LoadMoreHistoryUseCase
-import com.xxcactussell.repositories.messages.repository.MarkMessageAsRead
-import com.xxcactussell.repositories.messages.repository.ObserveLastReadOutboxMessageUseCase
-import com.xxcactussell.repositories.messages.repository.OpenChatUseCase
-import com.xxcactussell.repositories.messages.repository.RemoveReactionFromMessageUseCase
-import com.xxcactussell.repositories.messages.repository.SendMessageUseCase
 import com.xxcactussell.mategram.presentation.R
+import com.xxcactussell.player.PlaybackManager
 import com.xxcactussell.presentation.chats.model.AttachmentEntry
 import com.xxcactussell.presentation.chats.model.AvatarUiState
 import com.xxcactussell.presentation.chats.model.ChatEffect
@@ -63,8 +44,9 @@ import com.xxcactussell.presentation.messages.model.MessagesEvent.LoadMoreHistor
 import com.xxcactussell.presentation.messages.model.MessagesEvent.MessageClicked
 import com.xxcactussell.presentation.messages.model.MessagesEvent.MessageLongClicked
 import com.xxcactussell.presentation.messages.model.MessagesEvent.MessageRead
-import com.xxcactussell.presentation.messages.model.MessagesEvent.MessageSwiped
 import com.xxcactussell.presentation.messages.model.MessagesEvent.OpenFile
+import com.xxcactussell.presentation.messages.model.MessagesEvent.ResetStartMessage
+import com.xxcactussell.presentation.messages.model.MessagesEvent.ScrolledToStart
 import com.xxcactussell.presentation.messages.model.MessagesEvent.SendClicked
 import com.xxcactussell.presentation.messages.model.MessagesEvent.ShowScrollToBottomButton
 import com.xxcactussell.presentation.messages.model.MessagesEvent.UpdateFirstVisibleItemIndex
@@ -75,6 +57,23 @@ import com.xxcactussell.presentation.messages.model.getMessageId
 import com.xxcactussell.presentation.root.workers.DownloadFileWorker
 import com.xxcactussell.presentation.tools.FileOpener
 import com.xxcactussell.presentation.tools.isSameDay
+import com.xxcactussell.repositories.chats.repository.ObserveChatStatusesUseCase
+import com.xxcactussell.repositories.files.repository.CancelDownloadFileUseCase
+import com.xxcactussell.repositories.messages.model.MessageListItem
+import com.xxcactussell.repositories.messages.model.getDate
+import com.xxcactussell.repositories.messages.repository.AddReactionToMessageUseCase
+import com.xxcactussell.repositories.messages.repository.BuildMessageContentUseCase
+import com.xxcactussell.repositories.messages.repository.CloseChatUseCase
+import com.xxcactussell.repositories.messages.repository.GetChatActionFlowUseCase
+import com.xxcactussell.repositories.messages.repository.GetChatFlowUseCase
+import com.xxcactussell.repositories.messages.repository.GetUserUseCase
+import com.xxcactussell.repositories.messages.repository.LoadMoreHistoryUseCase
+import com.xxcactussell.repositories.messages.repository.LoadMoreNewerUseCase
+import com.xxcactussell.repositories.messages.repository.MarkMessageAsRead
+import com.xxcactussell.repositories.messages.repository.ObserveLastReadOutboxMessageUseCase
+import com.xxcactussell.repositories.messages.repository.OpenChatUseCase
+import com.xxcactussell.repositories.messages.repository.RemoveReactionFromMessageUseCase
+import com.xxcactussell.repositories.messages.repository.SendMessageUseCase
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -92,7 +91,11 @@ import kotlinx.coroutines.launch
 
 @AssistedFactory
 interface MessagesViewModelFactory {
-    fun create(chatId: Long): MessagesViewModel
+    fun create(
+        @Assisted("chatId") chatId: Long,
+        @Assisted("startMessageId") startMessageId: Long? = null,
+        @Assisted("lastReadInboxMessageId") lastReadInboxMessageId: Long? = null
+    ): MessagesViewModel
 }
 
 @HiltViewModel(assistedFactory = MessagesViewModelFactory::class)
@@ -112,7 +115,11 @@ class MessagesViewModel @AssistedInject constructor(
     private val getChatAction: GetChatActionFlowUseCase,
     private val closeChat: CloseChatUseCase,
     private val loadMoreHistory: LoadMoreHistoryUseCase,
-    @Assisted private val chatId: Long
+    private val loadMoreNewer: LoadMoreNewerUseCase,
+    private val playbackManager: PlaybackManager,
+    @Assisted("chatId") private val chatId: Long,
+    @Assisted("startMessageId") private val startMessageId: Long? = null,
+    @Assisted("lastReadInboxMessageId") private val lastReadInboxMessageId: Long? = null
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(MessagesUiState())
     val uiState: StateFlow<MessagesUiState> = _uiState.asStateFlow()
@@ -120,13 +127,34 @@ class MessagesViewModel @AssistedInject constructor(
     private val _effects = Channel<ChatEffect>()
     val effects = _effects.receiveAsFlow()
 
+    val playerState = playbackManager.playerState
     private var lastKnownFirstVisibleItemIndex: Int = 0
 
     init {
         observeMessagesFlow()
-        loadMoreHistory(chatId)
+        observeReadState()
+    }
+
+    private fun handleInitialize(startMsgId: Long?, lastReadMsgId: Long?) {
         viewModelScope.launch {
-            try {
+            _uiState.update {
+                it.copy(initialScrollTargetId = null)
+            }
+
+            val targetMessageId = when {
+                startMsgId != null -> startMsgId
+                lastReadMsgId != null -> lastReadMsgId
+                else -> null
+            }
+
+            _uiState.update {
+                it.copy(
+                    initialScrollTargetId = targetMessageId
+                )
+            }
+
+            loadMoreHistory(chatId, targetMessageId)
+            if (_uiState.value.chat == null) {
                 val chat = openChatUseCase(chatId)
                 if (chat != null) {
                     val attachmentEntries = createAttachmentEntries(chat)
@@ -143,14 +171,9 @@ class MessagesViewModel @AssistedInject constructor(
                         )
                     }
                     setupChatStatusObserver(chat)
-                } else {
-                    _uiState.update { it.copy(error = "Чат не найден") }
                 }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(error = "Ошибка загрузки чата: ${e.message}") }
             }
         }
-        observeReadState()
     }
 
     private fun observeMessagesFlow() {
@@ -282,12 +305,14 @@ class MessagesViewModel @AssistedInject constructor(
 
     private fun onMessagesEvent(event: MessagesEvent) {
         when (event) {
+            is MessagesEvent.Initialize -> handleInitialize(event.startMessageId, event.lastReadInboxMessageId)
             is SendClicked -> sendMessage(event.content)
+            is ScrolledToStart -> { }
             is LoadMoreHistory -> loadMoreHistory(chatId)
             is DismissError -> _uiState.update { it.copy(error = null) }
             is MessageClicked -> { if (_uiState.value.messageIdWithDateShown == event.messageId) _uiState.update { it.copy(messageIdWithDateShown = null) } else _uiState.update { it.copy(messageIdWithDateShown = event.messageId) } }
             is MessageLongClicked -> { /* TODO */ }
-            is MessageSwiped -> { /* TODO */ }
+            is ResetStartMessage -> {  }
             is ShowScrollToBottomButton -> _uiState.update { it.copy(showScrollToBottomButton = true) }
             is HideScrollToBottomButton -> _uiState.update { it.copy(showScrollToBottomButton = false) }
             is MessageRead -> handleMessageRead(event.messageId)
@@ -300,6 +325,24 @@ class MessagesViewModel @AssistedInject constructor(
             is OpenFile -> openFile(event.context, event.fileName)
             is MessagesEvent.ToggleReaction -> toggleReaction(event.chatId, event.messageId, event.reactionType)
             is MessagesEvent.ReplyToSelected -> _uiState.update { it.copy(messageToReplay = event.message) }
+            is MessagesEvent.PlayVoice -> {
+                if (playerState.value.isPaused && playerState.value.currentMediaId == event.messageId.toString()) {
+                    playbackManager.resume()
+                } else {
+                    playbackManager.playMedia(event.messageId, event.chatId)
+                }
+            }
+            is MessagesEvent.PlayVideo -> {
+                if (playerState.value.isPaused && playerState.value.currentMediaId == event.messageId.toString()) {
+                    playbackManager.resume()
+                } else {
+                    playbackManager.playMedia(event.messageId, event.chatId)
+                }
+            }
+            is MessagesEvent.PauseMedia -> {
+                playbackManager.pause()
+            }
+            is MessagesEvent.LoadMoreNewer -> loadMoreNewer(chatId)
         }
     }
 

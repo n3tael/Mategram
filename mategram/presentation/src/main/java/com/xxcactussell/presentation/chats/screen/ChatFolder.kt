@@ -6,15 +6,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -31,7 +27,7 @@ fun FolderScreen(
     folderId: Int,
     state: ChatListUiState,
     paddingValues: PaddingValues = PaddingValues(0.dp),
-    onChatClicked: ((Long) -> Unit)
+    onChatClicked: (Long, Long?, Long?) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     Box(
@@ -45,18 +41,22 @@ fun FolderScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(paddingValues.calculateStartPadding(LocalLayoutDirection.current), 4.dp, paddingValues.calculateEndPadding(LocalLayoutDirection.current), paddingValues.calculateBottomPadding() + 4.dp)
         ) {
-            items(
+            itemsIndexed(
                 items = state.sortedChats[folderId] ?: emptyList(),
-                contentType = { "chat_item" },
-                key = { it.chat.id }
-
-            ) { chatItemUiState: ChatItemUiState ->
+                contentType = { _, _ -> "chat_item" },
+                key = { _, item -> item.chat.id }
+            ) { index, item : ChatItemUiState ->
                 ChatItem(
+                    index = index,
                     onChatClicked = {
                         haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                        onChatClicked(chatItemUiState.chat.id)
+                        val idToJump = when {
+                            item.chat.lastMessage?.isOutgoing == true -> null
+                            else -> item.chat.lastReadInboxMessageId
+                        }
+                        onChatClicked(item.chat.id, null, idToJump)
                                     },
-                    uiState = chatItemUiState
+                    uiState = item
                 )
             }
         }

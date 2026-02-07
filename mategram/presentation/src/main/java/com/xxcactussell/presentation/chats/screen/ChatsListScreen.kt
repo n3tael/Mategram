@@ -10,7 +10,7 @@ import com.xxcactussell.presentation.chats.viewmodel.ChatsViewModel
 @Composable
 fun ChatsListScreen(
     viewModel: ChatsViewModel = hiltViewModel(),
-    onChatClick: (Long) -> Unit,
+    onChatClick: (Long, Long?, Long?) -> Unit,
     onFabClicked: () -> Unit,
     onAvatarClicked: () -> Unit
 ) {

@@ -1,83 +1,71 @@
 package com.xxcactussell.jni
 
+import android.os.Handler
+import android.os.Looper
 import android.view.Choreographer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-
-enum class VisibilityState {
-    HIDDEN,
-    PREPARING,
-    VISIBLE
-}
+import java.util.concurrent.ConcurrentHashMap
 
 object StickerAnimScheduler {
-    private val activeStickers = mutableMapOf<StickerController, VisibilityState>()
-    private val choreographer = Choreographer.getInstance()
-    private var isRunning = false
+    private val activeStickers = ConcurrentHashMap.newKeySet<StickerController>()
 
+    private val choreographer = Choreographer.getInstance()
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    @Volatile
+    private var isRunning = false
     private val decoderScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
-            val now = System.currentTimeMillis()
+            if (activeStickers.isEmpty()) {
+                isRunning = false
+                return
+            }
 
-            val iterator = activeStickers.entries.iterator()
+            val now = System.currentTimeMillis()
+            val iterator = activeStickers.iterator()
+
             while (iterator.hasNext()) {
-                val entry = iterator.next()
-                val sticker = entry.key
-                val state = entry.value
+                val sticker = iterator.next()
 
                 if (sticker.isReleased) {
                     iterator.remove()
                     continue
                 }
 
-                val snapshot = synchronized(activeStickers) { activeStickers.entries.toList() }
+                sticker.tryDecodeNextFrame(now, decoderScope)
 
-                val sortedStickers = snapshot.sortedByDescending { it.value == VisibilityState.VISIBLE }
-
-                sortedStickers.forEach { (sticker, state) ->
-                    if (state == VisibilityState.VISIBLE) {
-                        sticker.tryDecodeNextFrame(now, decoderScope)
-                    } else if (state == VisibilityState.PREPARING && now % 32 < 8) {
-                        sticker.tryDecodeNextFrame(now, decoderScope)
-                    }
-                }
-
-                if (state == VisibilityState.VISIBLE && sticker.checkNewFrameAvailable()) {
-                    sticker.onFrameReady?.invoke()
+                if (sticker.checkNewFrameAvailable()) {
+                    sticker.dispatchFrameReady()
                 }
             }
 
-            if (activeStickers.isNotEmpty()) choreographer.postFrameCallback(this)
-            else isRunning = false
+            choreographer.postFrameCallback(this)
         }
     }
 
-    fun updateState(sticker: StickerController, state: VisibilityState) {
-        synchronized(activeStickers) {
-            activeStickers[sticker] = state
-            if (!isRunning && activeStickers.isNotEmpty()) {
-                isRunning = true
-                choreographer.postFrameCallback(frameCallback)
-            }
-        }
-    }
-
-    fun add(sticker: StickerController, initialState: VisibilityState = VisibilityState.PREPARING) {
-        synchronized(activeStickers) {
-            if (!activeStickers.containsKey(sticker)) {
-                activeStickers[sticker] = initialState
-                if (!isRunning) {
-                    isRunning = true
-                    choreographer.postFrameCallback(frameCallback)
-                }
-            }
+    fun add(sticker: StickerController) {
+        if (sticker.isReleased) return
+        if (activeStickers.add(sticker)) {
+            checkRunningState()
         }
     }
 
     fun remove(sticker: StickerController) {
-        synchronized(activeStickers) { activeStickers.remove(sticker) }
+        activeStickers.remove(sticker)
+    }
+
+    private fun checkRunningState() {
+        if (!isRunning && activeStickers.isNotEmpty()) {
+            isRunning = true
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                choreographer.postFrameCallback(frameCallback)
+            } else {
+                mainHandler.post { choreographer.postFrameCallback(frameCallback) }
+            }
+        }
     }
 }

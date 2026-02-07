@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.xxcactussell.customdomain.ForwardFullInfo
 import com.xxcactussell.domain.Message
 import com.xxcactussell.domain.MessageSendingStateFailed
 import com.xxcactussell.domain.MessageSendingStatePending
@@ -60,13 +61,24 @@ fun BubbleMessage(
     onEvent: (Any) -> Unit,
     replyProgress: @Composable (() -> Unit),
     onReplyClicked: (Long) -> Unit,
+    onLinkClicked: (Long, Long?) -> Unit,
     content: @Composable (() -> Unit)
 ) {
     val alignment = if (isOutgoing) Alignment.Companion.CenterEnd else Alignment.Companion.CenterStart
     val haptic = LocalHapticFeedback.current
 
+    val forwardInfo : ForwardFullInfo? = when (message) {
+        is MessageUiItem.MessageItem -> if (message.message.forwardFullInfo != null) message.message.forwardFullInfo else null
+        is MessageUiItem.AlbumItem -> {
+            message.messages.firstOrNull { it.message.forwardFullInfo != null }?.message?.forwardFullInfo
+        }
+        else -> null
+    }
+
     val backgroundColor = if (!hasBubble) {
-        Color.Companion.Transparent
+        Color.Transparent
+    } else if (forwardInfo != null) {
+        MaterialTheme.colorScheme.surfaceContainerLow
     } else {
         if (isOutgoing) {
             MaterialTheme.colorScheme.primaryContainer
@@ -170,6 +182,11 @@ fun BubbleMessage(
                 Spacer(modifier = Modifier.height(4.dp))
             }
 
+            if (forwardInfo != null) {
+                ForwardMarkup(forwardInfo = forwardInfo, isOutgoing, onLinkClicked)
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
             Box {
                 Surface(
                     color = backgroundColor,
@@ -257,3 +274,4 @@ fun BubbleMessage(
         }
     }
 }
+

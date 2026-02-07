@@ -24,9 +24,11 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
@@ -36,6 +38,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -54,6 +57,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -99,11 +103,11 @@ import com.xxcactussell.domain.ChatActionUploadingVideo
 import com.xxcactussell.domain.ChatActionUploadingVideoNote
 import com.xxcactussell.domain.ChatActionUploadingVoiceNote
 import com.xxcactussell.domain.ChatActionWatchingAnimations
-import com.xxcactussell.domain.ChatType
 import com.xxcactussell.domain.ChatTypeBasicGroup
 import com.xxcactussell.domain.ChatTypeSupergroup
 import com.xxcactussell.domain.UserTypeBot
 import com.xxcactussell.mategram.presentation.R
+import com.xxcactussell.player.PlayerState
 import com.xxcactussell.presentation.chats.model.AvatarUiState
 import com.xxcactussell.presentation.chats.screen.ChatAvatar
 import com.xxcactussell.presentation.localization.localizedString
@@ -122,6 +126,7 @@ import com.xxcactussell.presentation.tools.InputMessageField
 import com.xxcactussell.presentation.tools.formatTimestampToDate
 import com.xxcactussell.presentation.tools.screenStyle
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
@@ -129,7 +134,7 @@ import kotlin.math.roundToInt
 
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class,
-    ExperimentalFoundationApi::class
+    ExperimentalFoundationApi::class, ExperimentalLayoutApi::class
 )
 @Composable
 fun MessagesContent(
@@ -138,7 +143,9 @@ fun MessagesContent(
     onEvent: (Any) -> Unit,
     onBackHandle: () -> Unit,
     onCameraClicked: () -> Unit,
-    onMediaClicked: (Long) -> Unit
+    onLinkClicked: (Long, Long?) -> Unit,
+    onMediaClicked: (Long) -> Unit,
+    playerState: PlayerState
 ) {
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
@@ -148,9 +155,10 @@ fun MessagesContent(
 
     var highlightedMessageId by remember { mutableStateOf<Long?>(null) }
     var pendingScrollToMessageId by remember { mutableStateOf<Long?>(null) }
+    var isInitialScrollPerformed by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.messages.firstOrNull()) {
-        if (state.messages.firstOrNull() != null) {
+        if (state.messages.firstOrNull() != null && isInitialScrollPerformed) {
             if (lazyListState.firstVisibleItemIndex > 1) {
                 onEvent(MessagesEvent.ShowScrollToBottomButton)
             } else {
@@ -158,6 +166,28 @@ fun MessagesContent(
                     lazyListState.animateScrollToItem(0)
                 }
             }
+        }
+    }
+
+    LaunchedEffect(state.messages, state.initialScrollTargetId) {
+        if (!isInitialScrollPerformed && state.messages.isNotEmpty() && state.initialScrollTargetId != null) {
+            val targetId = state.initialScrollTargetId
+
+            val index = state.messages.indexOfFirst { item ->
+                val itemId = item.getMessageId()
+                if (itemId == targetId) return@indexOfFirst true
+                if (item is MessageUiItem.AlbumItem) {
+                    return@indexOfFirst item.messages.any { it.message.id == targetId }
+                }
+                false
+            }
+
+            if (index != -1) {
+                lazyListState.scrollToItem(index)
+                isInitialScrollPerformed = true
+            }
+        } else if (!isInitialScrollPerformed && state.messages.isNotEmpty()) {
+            isInitialScrollPerformed = true
         }
     }
 
@@ -174,7 +204,7 @@ fun MessagesContent(
             }
 
             if (index != -1) {
-                lazyListState.animateScrollToItem(index, -2)
+                lazyListState.animateScrollToItem(index, -1)
                 highlightedMessageId = targetId
                 pendingScrollToMessageId = null
             } else {
@@ -186,8 +216,9 @@ fun MessagesContent(
     }
 
     LaunchedEffect(lazyListState) {
-        snapshotFlow { lazyListState.firstVisibleItemIndex to lazyListState.layoutInfo }
-            .collect { (firstIndex) ->
+        snapshotFlow { lazyListState.firstVisibleItemIndex }
+            .distinctUntilChanged()
+            .collect { firstIndex ->
                 onEvent(MessagesEvent.UpdateFirstVisibleItemIndex(firstIndex))
                 if (firstIndex == 0) {
                     onEvent(MessagesEvent.HideScrollToBottomButton)
@@ -196,10 +227,10 @@ fun MessagesContent(
                 }
             }
     }
-
     Scaffold(
         modifier = Modifier.screenStyle(),
         containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+        contentWindowInsets = ScaffoldDefaults.contentWindowInsets,
         topBar = {
             Column {
                 TopAppBar(
@@ -211,7 +242,7 @@ fun MessagesContent(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             ChatAvatar(
-                                modifier = Modifier.size(32.dp),
+                                modifier = Modifier.size(48.dp),
                                 state = AvatarUiState(
                                     chatId = state.chat?.id ?: 0L,
                                     photo = state.chat?.photo,
@@ -536,6 +567,9 @@ fun MessagesContent(
                                 if (index + 5 > state.messages.size) {
                                     onEvent(MessagesEvent.LoadMoreHistory)
                                 }
+                                if (index < 10) {
+                                    onEvent(MessagesEvent.LoadMoreNewer)
+                                }
                                 if ((message.getMessageId()
                                         ?: 0L) > (state.chat?.lastReadInboxMessageId ?: 0L)
                                 ) {
@@ -567,6 +601,7 @@ fun MessagesContent(
                                     IntOffset(offsetPositionAnimated.roundToInt(), 0)
                                 },
                             message = message,
+                            playerState = playerState,
                             isDateShown = state.messageIdWithDateShown == message.getMessageId(),
                             topCorner = topCorner,
                             bottomCorner = bottomCorner,
@@ -575,6 +610,7 @@ fun MessagesContent(
                             isGroup = state.chat?.type is ChatTypeBasicGroup || state.chat?.type is ChatTypeSupergroup && !(state.chat.type as ChatTypeSupergroup).isChannel,
                             isUnread = isUnread,
                             onMediaClicked = onMediaClicked,
+                            onLinkClicked = onLinkClicked,
                             onReplyClicked = { replyToMessageId ->
                                 val index = state.messages.indexOfFirst { item ->
                                     val itemId = item.getMessageId()

@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.xxcactussell.customdomain.ForwardFullInfo
 import com.xxcactussell.domain.MessageAnimatedEmoji
 import com.xxcactussell.domain.MessageAnimation
 import com.xxcactussell.domain.MessageDocument
@@ -30,7 +31,10 @@ import com.xxcactussell.domain.MessageSendingStatePending
 import com.xxcactussell.domain.MessageSticker
 import com.xxcactussell.domain.MessageText
 import com.xxcactussell.domain.MessageVideo
+import com.xxcactussell.domain.MessageVideoNote
+import com.xxcactussell.domain.MessageVoiceNote
 import com.xxcactussell.domain.Sticker
+import com.xxcactussell.player.PlayerState
 import com.xxcactussell.presentation.LocalRootViewModel
 import com.xxcactussell.presentation.messages.model.MessageUiItem
 import com.xxcactussell.presentation.tools.ColumnWidthOf
@@ -38,10 +42,12 @@ import com.xxcactussell.presentation.tools.FormattedTextView
 import com.xxcactussell.presentation.tools.Sticker
 
 @Composable
-fun MessageContent(message: MessageUiItem.MessageItem, onMediaClicked: (Long) -> Unit, onEvent: (Any) -> Unit) {
+fun MessageContent(message: MessageUiItem.MessageItem, playerState: PlayerState, onMediaClicked: (Long) -> Unit, onEvent: (Any) -> Unit) {
     val isOutgoing = message.message.isOutgoing
 
-    val messageTextColor = if (isOutgoing) {
+    val messageTextColor = if (message.message.forwardFullInfo != null) {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    } else if (isOutgoing) {
         MaterialTheme.colorScheme.onPrimaryContainer
     } else {
         MaterialTheme.colorScheme.onSecondaryContainer
@@ -58,6 +64,8 @@ fun MessageContent(message: MessageUiItem.MessageItem, onMediaClicked: (Long) ->
         is MessageAnimatedEmoji -> MessageStickerContent(content.animatedEmoji.sticker, 92.dp)
         is MessageDocument -> DocumentMessage(message, messageTextColor, isSending, isFailed, onEvent)
         is MessageAnimation -> AnimationMessageContent(message, messageTextColor, isSending, isFailed, onMediaClicked)
+        is MessageVoiceNote -> VoiceMessage(message, playerState, onEvent)
+        is MessageVideoNote -> MessageVideoNoteContent(message, playerState, onEvent)
         else -> {
             Text(
                 modifier = Modifier.padding(8.dp),
@@ -127,7 +135,7 @@ fun MessageVideoContent(
         val imageWidth = content.video.thumbnail?.width ?: 0
         val aspectRatio = if (imageHeight != 0 && imageWidth != 0) imageWidth.toFloat() / imageHeight.toFloat() else 1F
 
-        VideoMessage(
+        MessageVideoNoteContent(
             modifier = Modifier
                 .layoutId("photo")
                 .then(

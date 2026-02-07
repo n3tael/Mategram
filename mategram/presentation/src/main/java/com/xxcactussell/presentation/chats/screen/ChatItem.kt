@@ -31,6 +31,7 @@ import com.xxcactussell.presentation.tools.formatTimestampToDate
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatItem(
+    index: Int,
     uiState: ChatItemUiState,
     onChatClicked: (Long) -> Unit
 ) {
@@ -41,8 +42,7 @@ fun ChatItem(
     }
 
     val containerShape = when {
-        uiState.isSelected -> RoundedCornerShape(48.dp)
-        uiState.isUnread -> RoundedCornerShape(48.dp)
+        uiState.isSelected -> RoundedCornerShape(32.dp)
         else -> RoundedCornerShape(24.dp)
     }
 

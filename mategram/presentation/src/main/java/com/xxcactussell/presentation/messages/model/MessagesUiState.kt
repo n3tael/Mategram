@@ -14,6 +14,7 @@ import com.xxcactussell.presentation.chats.model.AttachmentEntry
 data class MessagesUiState(
     val chat: Chat? = null,
     val user: User? = null,
+    val initialScrollTargetId: Long? = null,
     val messages: List<MessageUiItem> = emptyList(),
     val chatAction: ChatAction = ChatActionCancel,
     val isLoadingHistory: Boolean = false,
@@ -45,19 +46,25 @@ fun MessagesUiState.getMessage(messageId: Long) : Message? {
 sealed interface MessagesEvent {
     data class SendClicked(val content: List<InputMessageContent>) : MessagesEvent
     object LoadMoreHistory : MessagesEvent
+    object ScrolledToStart : MessagesEvent
     object DismissError : MessagesEvent
     object ShowScrollToBottomButton : MessagesEvent
     object HideScrollToBottomButton : MessagesEvent
     data class MessageLongClicked(val messageId: Long) : MessagesEvent
     data class MessageClicked(val messageId: Long? = null) : MessagesEvent
-    data class MessageSwiped(val messageId: Long) : MessagesEvent
+    object ResetStartMessage : MessagesEvent
     data class MessageRead(val messageId: Long?) : MessagesEvent
-    data class UpdateFirstVisibleItemIndex(val index: Int) : MessagesEvent
+    data class UpdateFirstVisibleItemIndex(val index: Int, val messageId: Long? = null) : MessagesEvent
     data class DownloadFile(val fileId: Int, val fileName: String) : MessagesEvent
     data class CancelDownloadFile(val fileId: Int, val fileName: String) : MessagesEvent
     data class OpenFile(val context: Context, val fileName: String) : MessagesEvent
     data class ReplyToSelected(val message: MessageUiItem?) : MessagesEvent
     data class ToggleReaction(val chatId: Long, val messageId: Long, val reactionType: ReactionType) : MessagesEvent
+    data class PlayVoice(val messageId: Long, val chatId: Long) : MessagesEvent
+    data class PlayVideo(val messageId: Long, val chatId: Long) : MessagesEvent
+    data class PauseMedia(val messageId: Long) : MessagesEvent
+    data class Initialize(val startMessageId: Long?, val lastReadInboxMessageId: Long?) : MessagesEvent
+    object LoadMoreNewer : MessagesEvent
 }
 
 sealed interface InputEvent {

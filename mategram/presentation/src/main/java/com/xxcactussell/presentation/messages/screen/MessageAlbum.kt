@@ -32,6 +32,17 @@ import com.xxcactussell.presentation.tools.ColumnWidthOf
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MessageAlbum(messages: List<MessageUiItem.MessageItem>, onMediaClicked: (Long) -> Unit) {
+    val hasForward = messages.any { it.message.forwardFullInfo != null }
+    val isOutgoing = messages.any { it.message.isOutgoing }
+
+    val messageTextColor = if (hasForward) {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    } else if (isOutgoing) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    }
+
     val caption = messages.firstNotNullOfOrNull {
         when (val content = it.message.content) {
             is MessagePhoto -> if (content.caption.text.isNotEmpty()) content.caption else null
@@ -75,7 +86,7 @@ fun MessageAlbum(messages: List<MessageUiItem.MessageItem>, onMediaClicked: (Lon
         rulerId = "carousel",
         horizontalSpacers = 8.dp
     ) {
-        if (isTextAboveMessage != null) Caption(caption)
+        if (isTextAboveMessage != null) Caption(caption, messageTextColor)
         Column(
             Modifier.layoutId("carousel")
         ) {
@@ -115,7 +126,7 @@ fun MessageAlbum(messages: List<MessageUiItem.MessageItem>, onMediaClicked: (Lon
                             }
 
                             is MessageVideo -> {
-                                VideoMessage(
+                                MessageVideoNoteContent(
                                     modifier = Modifier
                                         .height(320.dp)
                                         .width(256.dp)
@@ -164,6 +175,6 @@ fun MessageAlbum(messages: List<MessageUiItem.MessageItem>, onMediaClicked: (Lon
                 DocumentMessageContent(doc.message.content as MessageDocument) { }
             }
         }
-        if (isTextAboveMessage == null) Caption(caption)
+        if (isTextAboveMessage == null) Caption(caption, messageTextColor)
     }
 }

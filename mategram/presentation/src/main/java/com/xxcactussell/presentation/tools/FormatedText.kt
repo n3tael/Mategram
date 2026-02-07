@@ -3,6 +3,7 @@ package com.xxcactussell.presentation.tools
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.LocalBackgroundTextMeasurementExecutor
@@ -130,17 +131,21 @@ fun FormattedTextView(
 
     val inlineContent = remember(uiState.inlineContent, fontSize) {
         val size = if (fontSize.isSpecified) fontSize else 16.sp
-        val dpSize = size.value * 1.2
-        val placeholder = Placeholder(size, size, PlaceholderVerticalAlign.TextCenter)
+        val dpSize = size * 1.4
+        val placeholder = Placeholder(size * 1.4, size, PlaceholderVerticalAlign.TextCenter)
 
         uiState.inlineContent.mapValues { (_, emojiData) ->
             InlineTextContent(placeholder) {
-                SmartEmojiBox(
-                    fileId = emojiData.fileId,
-                    size = dpSize.dp,
-                    filesFlow = filesFlow,
-                    onDownloadRequest = { rootViewModel.downloadFile(it) }
-                )
+                Box(
+                    modifier = Modifier.requiredSize(dpSize.value.dp)
+                ) {
+                    SmartEmojiBox(
+                        fileId = emojiData.fileId,
+                        size = dpSize.value.dp,
+                        filesFlow = filesFlow,
+                        onDownloadRequest = { rootViewModel.downloadFile(it) }
+                    )
+                }
             }
         }
     }

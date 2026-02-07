@@ -16,11 +16,20 @@ private fun decompressGzipIfNeeded(data: ByteArray): ByteArray {
 }
 
 object StickerRegistry {
-    private val cache = mutableMapOf<String, SharedController>()
+    private data class CacheKey(
+        val path: String,
+        val width: Int,
+        val height: Int
+    )
+
+    private val cache = mutableMapOf<CacheKey, SharedController>()
 
     fun acquire(path: String, hash: String, width: Int, height: Int): StickerController? {
+        // Создаем уникальный ключ для текущего запроса
+        val key = CacheKey(path, width, height)
+
         synchronized(cache) {
-            cache[hash]?.let {
+            cache[key]?.let {
                 it.refCount++
                 return it.controller
             }
@@ -38,19 +47,22 @@ object StickerRegistry {
                 File(path).readBytes()
             }
 
-            val controller = StickerController(type, source, width, height)
-            cache[hash] = SharedController(controller)
+            val controller = StickerController(type, source, width, height, sourceHash = hash)
+
+            cache[key] = SharedController(controller)
             return controller
         }
     }
 
-    fun release(hash: String) {
+    fun release(path: String, width: Int, height: Int) {
+        val key = CacheKey(path, width, height)
+
         synchronized(cache) {
-            val shared = cache[hash] ?: return
+            val shared = cache[key] ?: return
             shared.refCount--
             if (shared.refCount <= 0) {
                 shared.controller.close()
-                cache.remove(hash)
+                cache.remove(key)
             }
         }
     }

@@ -15,6 +15,7 @@
             <option value="$PROJECT_DIR$/mategram/domain" />
             <option value="$PROJECT_DIR$/mategram/jni" />
             <option value="$PROJECT_DIR$/mategram/mategram" />
+            <option value="$PROJECT_DIR$/mategram/player" />
             <option value="$PROJECT_DIR$/mategram/presentation" />
             <option value="$PROJECT_DIR$/mategram/tdlib" />
             <option value="$PROJECT_DIR$/mategram/utils" />

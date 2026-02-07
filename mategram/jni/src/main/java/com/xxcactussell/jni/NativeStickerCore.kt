@@ -20,22 +20,14 @@ object NativeStickerCore {
     external fun getLottieFrameCount(ptr: Long): Int
     external fun getLottieFrameRate(ptr: Long): Float
 
-    external fun renderLottieDirect(ptr: Long, frame: Int, bufferPtr: Long) : Int
-
     // WebP
-    external fun createWebPHandle(data: ByteBuffer): Long
     external fun createWebPHandleFromBytes(data: ByteArray): Long
     external fun destroyWebPHandle(ptr: Long)
 
-    external fun renderWebPDirect(ptr: Long, bufferPtr: Long) : Int
 
     // VP9
-    external fun createVpxHandle(data: ByteBuffer): Long
     external fun destroyVpxHandle(ptr: Long)
     external fun createVpxHandleFromBytes(data: ByteArray): Long
-    external fun seekVpxToStart(ptr: Long)
-
-    external fun renderVpxDirect(playerPtr: Long, bufferPtr: Long) : Int
 
     // Size getters
     external fun getLottieSize(ptr: Long, outArray: IntArray)
@@ -55,8 +47,4 @@ object NativeStickerCore {
     external fun acquireNativeBuffer(w: Int, h: Int, outPtr: LongArray): HardwareBuffer?
 
     external fun renderAsync(type: Int, ptr: Long, bufferPtr: Long, frame: Int, cachePath: String, listener: Any)
-
-    external fun renderLottieWithCache(ptr: Long, frame: Int, bitmap: Bitmap)
-    external fun renderWebPWithCache(ptr: Long, bitmap: Bitmap): Int
-    external fun renderVpxWithCache(ptr: Long, bitmap: Bitmap): Int
 }

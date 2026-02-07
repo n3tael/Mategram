@@ -1,15 +1,13 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
-}
-
-android {
-    namespace = "org.drinkless.tdlib"
-    compileSdk = 36
 }
 
 kotlin {
     jvmToolchain(21)
+    android {
+        namespace = "org.drinkless.tdlib"
+        compileSdk = 36
+    }
 }
 
 dependencies {

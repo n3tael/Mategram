@@ -31,7 +31,7 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 interface MessagesRepository {
-    suspend fun getChatHistory(chatId: Long, fromMessageId: Long, limit: Int) : List<Message>
+    suspend fun getChatHistory(chatId: Long, fromMessageId: Long, offset: Int, limit: Int): List<Message>
     fun observeSucceededMessages() : Flow<Pair<Long, Message>>
     fun observeLastReadOutboxMessage() : Flow<Pair<Long, Long>>
     suspend fun openChat(chatId: Long) : Chat?
@@ -46,7 +46,8 @@ interface MessagesRepository {
     suspend fun searchMediaMessages(chatId: Long, fromMessageId: Long, offset: Int, limit: Int) : List<Message>
     suspend fun getReplyMessage(chatId: Long, messageId: Long): Message?
     fun getChatFlow(chatId: Long): Flow<List<MessageListItem>>
-    fun loadMoreHistory(chatId: Long)
+    fun loadMoreHistory(chatId: Long, messageId: Long? = null)
+    fun loadMoreNewer(chatId: Long)
     fun clearChatSession(chatId: Long)
 
     fun addReactionToMessage(chatId: Long, messageId: Long, reactionType: ReactionType)
@@ -76,16 +77,15 @@ class RemoveReactionFromMessageUseCase @Inject constructor(
 class LoadMoreHistoryUseCase @Inject constructor(
     private val messageRepository: MessagesRepository
 ) {
-    operator fun invoke(chatId: Long) = messageRepository.loadMoreHistory(chatId)
+    operator fun invoke(chatId: Long, messageId: Long? = null) = messageRepository.loadMoreHistory(chatId, messageId)
 }
 
-class GetReplyMessageUseCase @Inject constructor(
+class LoadMoreNewerUseCase @Inject constructor(
     private val messageRepository: MessagesRepository
 ) {
-    suspend operator fun invoke(chatId: Long, messageId: Long): Message? {
-        return messageRepository.getReplyMessage(chatId, messageId)
-    }
+    operator fun invoke(chatId: Long) = messageRepository.loadMoreNewer(chatId)
 }
+
 
 class GetChatFlowUseCase @Inject constructor(
     private val messageRepository: MessagesRepository
@@ -116,63 +116,9 @@ class GetUserUseCase @Inject constructor(
     }
 }
 
-class GetSendersInfoUseCase @Inject constructor(
-    private val chatsRepo: MessagesRepository
-) {
-    suspend operator fun invoke(senderIds: Set<MessageSender>): Map<Long, Any> {
-        return coroutineScope {
-            val deferredSenders = senderIds.associateWith { senderId ->
-                async {
-                    when (senderId) {
-                        is MessageSenderChat -> chatsRepo.getChat(senderId.chatId)
-                        is MessageSenderUser -> chatsRepo.getUser(senderId.userId)
-                    }
-                }
-            }
-
-            val resultMap = mutableMapOf<Long, Any>()
-
-            deferredSenders.forEach { (senderId, deferredChat) ->
-                val chat = deferredChat.await()
-                if (chat != null) {
-                    resultMap[senderId.getId() ?: 0L] = chat
-                }
-            }
-
-            return@coroutineScope resultMap.toMap()
-        }
-    }
-}
-class ObserveSucceededMessagesUseCase @Inject constructor(private val repository: MessagesRepository) {
-    operator fun invoke() : Flow<Pair<Long, Message>> = repository.observeSucceededMessages()
-}
-
 class ObserveLastReadOutboxMessageUseCase @Inject constructor(private val repository: MessagesRepository) {
     operator fun invoke() : Flow<Pair<Long, Long>> = repository.observeLastReadOutboxMessage()
 }
-
-class GetChatHistoryUseCase @Inject constructor(private val repository: MessagesRepository) {
-    suspend operator fun invoke(chatId: Long, fromMessageId: Long, limit: Int) : List<Message> = repository.getChatHistory(chatId, fromMessageId, limit)
-}
-
-class GetMessagesWithAlbumBoundaryUseCase @Inject constructor(
-    private val getChatHistory: GetChatHistoryUseCase
-) {
-    suspend operator fun invoke(chatId: Long, fromMessageId: Long, limit: Int): List<Message> {
-        var messages = getChatHistory(chatId, fromMessageId, limit)
-        if (messages.isNotEmpty()) {
-            val oldestMessage = messages.last()
-            if (oldestMessage.mediaAlbumId != 0L) {
-                val lastAlbumIndex = messages.indexOfFirst { it.mediaAlbumId == oldestMessage.mediaAlbumId }
-                if (lastAlbumIndex > 0) {
-                    messages = messages.subList(0, lastAlbumIndex)
-                }
-            }
-        }
-        return messages
-    }
-}
-
 class OpenChatUseCase @Inject constructor(private val repository: MessagesRepository) {
     suspend operator fun invoke(chatId: Long) : Chat? = repository.openChat(chatId)
 }

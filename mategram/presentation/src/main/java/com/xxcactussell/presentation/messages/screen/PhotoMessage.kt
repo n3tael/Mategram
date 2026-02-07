@@ -153,7 +153,7 @@ fun PhotoMessage(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
-fun VideoMessage(
+fun MessageVideoNoteContent(
     modifier: Modifier = Modifier,
     messageId: Long,
     video: Video,

@@ -1,29 +1,29 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
-    id("dagger.hilt.android.plugin")
     id("com.google.devtools.ksp")
-}
-
-android {
-    namespace = "com.xxcactussell.mategram.presentation"
-    compileSdk = 36
-    android.buildFeatures.buildConfig = true
-    defaultConfig {
-        minSdk = 31
-    }
+    id("dagger.hilt.android.plugin")
 }
 
 kotlin {
     jvmToolchain(21)
+
+    android {
+        namespace = "com.xxcactussell.mategram.presentation"
+        compileSdk = 36
+        android.buildFeatures.buildConfig = true
+        defaultConfig {
+            minSdk = 31
+        }
+    }
 }
 
 dependencies {
     implementation(project(":mategram:jni"))
     implementation(project(":mategram:domain"))
     implementation(project(":mategram:utils"))
+    implementation(project(":mategram:player"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
@@ -80,4 +80,5 @@ dependencies {
     implementation(libs.androidx.media3.common)
     implementation(libs.androidx.media3.ui.compose)
     implementation(libs.coil.gif)
+    implementation(libs.androidx.datastore.preferences)
 }

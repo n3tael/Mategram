@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import java.io.Closeable
+import java.util.concurrent.CopyOnWriteArrayList
 
 class StickerController(
     val type: StickerType,
@@ -27,11 +28,14 @@ class StickerController(
     @Volatile var isReleased = false
         private set
 
+    @Volatile var hasRenderedFirstFrame = false
+        private set
+
     val stickerWidth: Int
     val stickerHeight: Int
     val renderWidth: Int
     val renderHeight: Int
-    val bitmap: android.graphics.Bitmap
+    val bitmap: Bitmap
 
     private var totalFrames: Int = 0
     private var frameDelayMs: Long = 16
@@ -41,18 +45,19 @@ class StickerController(
 
     @Volatile private var newFrameAvailable = false
     private val decodingMutex = Mutex()
-    var onFrameReady: (() -> Unit)? = null
+
+    private val listeners = CopyOnWriteArrayList<() -> Unit>()
 
     private val nativeCallback = object {
         @Keep
         fun onNativeFrameReady(delay: Int) {
             if (isReleased) return
-
             if (delay > 0) {
                 frameDelayMs = delay.toLong().coerceIn(16, 500)
             }
             newFrameAvailable = true
-            onFrameReady?.invoke()
+            hasRenderedFirstFrame = true
+            dispatchFrameReady()
         }
     }
 
@@ -138,10 +143,23 @@ class StickerController(
 
     fun checkNewFrameAvailable(): Boolean = newFrameAvailable.also { newFrameAvailable = false }
 
+    fun addFrameListener(listener: () -> Unit) {
+        listeners.addIfAbsent(listener)
+    }
+
+    fun removeFrameListener(listener: () -> Unit) {
+        listeners.remove(listener)
+    }
+
+    fun dispatchFrameReady() {
+        listeners.forEach { it.invoke() }
+    }
+
     override fun close() {
         if (isReleased) return
         isReleased = true
 
+        listeners.clear()
         StickerAnimScheduler.remove(this)
 
         if (nativePtr != 0L) {
@@ -157,7 +175,5 @@ class StickerController(
             NativeStickerCore.releaseNativeBuffer(nativeBufferPtr)
             nativeBufferPtr = 0L
         }
-
-        onFrameReady = null
     }
 }

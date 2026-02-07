@@ -8,7 +8,7 @@ import kotlinx.serialization.Serializable
 data object RouteChatList : NavKey
 
 @Serializable
-data class RouteChatDetail(val chatId: Long) : NavKey
+data class RouteChatDetail(val chatId: Long, val messageId: Long? = null, val lastReadInboxMessageId: Long? = null) : NavKey
 
 @Serializable
 data object RouteAuth : NavKey

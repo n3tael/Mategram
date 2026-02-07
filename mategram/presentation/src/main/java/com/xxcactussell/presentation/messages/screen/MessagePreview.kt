@@ -4,7 +4,10 @@ import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +33,8 @@ import com.xxcactussell.domain.MessagePhoto
 import com.xxcactussell.domain.MessageSticker
 import com.xxcactussell.domain.MessageText
 import com.xxcactussell.domain.MessageVideo
+import com.xxcactussell.domain.MessageVideoNote
+import com.xxcactussell.domain.MessageVoiceNote
 import com.xxcactussell.domain.Minithumbnail
 import com.xxcactussell.domain.TextEntity
 import com.xxcactussell.domain.TextEntityTypeCustomEmoji
@@ -119,6 +124,19 @@ fun MessagePreview(message: Message) {
                 icon = painterResource(R.drawable.file_present_24px)
             )
         }
+        is MessageVoiceNote -> {
+            MessagePreviewState(
+                text = FormattedText(localizedString("AttachAudio")),
+                icon = painterResource(R.drawable.record_voice_over_24px)
+            )
+        }
+        is MessageVideoNote -> {
+            MessagePreviewState(
+                text = FormattedText(localizedString("AttachRound")),
+                icon = painterResource(R.drawable.play_circle_24px),
+                thumbnail = content.videoNote.minithumbnail
+            )
+        }
         is MessageAnimation -> {
             MessagePreviewState(
                 text = content.caption
@@ -131,12 +149,15 @@ fun MessagePreview(message: Message) {
         }
     }
     Row(
+        modifier = Modifier.requiredHeight(20.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if(message.isOutgoing) {
             Text(
                 text = "${localizedString("FromYou")}:",
+                maxLines = 1,
+                overflow = TextOverflow.Clip,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -147,7 +168,7 @@ fun MessagePreview(message: Message) {
                 contentDescription = "Медиа в ответе",
                 modifier = Modifier
                     .size(16.dp)
-                    .clip(RoundedCornerShape(4.dp)),
+                    .clip(if(content is MessageVideoNote) CircleShape else RoundedCornerShape(4.dp)),
             )
         } else if (state.icon != null) {
             Icon(

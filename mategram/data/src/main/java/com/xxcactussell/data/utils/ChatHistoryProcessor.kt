@@ -49,6 +49,9 @@ class ChatHistoryProcessor(
     private var isLoadingHistory = false
     private var canLoadMore = true
 
+    private var canLoadNewer = false
+    private var isAtLiveHead = true
+
     fun processNewMessage(message: Message) {
         var message = message
         scope.launch {
@@ -179,10 +182,9 @@ class ChatHistoryProcessor(
 
         scope.launch {
             try {
-                val lastItem = _items.value.lastOrNull()
-                val fromMessageId = when (lastItem) {
+                val fromMessageId = when (val lastItem = _items.value.lastOrNull()) {
                     is MessageListItem.MessageItem -> lastItem.message.id
-                    is MessageListItem.AlbumItem -> lastItem.messages.last().id // Последнее в альбоме - самое старое
+                    is MessageListItem.AlbumItem -> lastItem.messages.last().id
                     null -> 0L
                 }
 
@@ -201,6 +203,62 @@ class ChatHistoryProcessor(
                     loadMoreHistory(limit)
                 }
 
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                isLoadingHistory = false
+            }
+        }
+    }
+
+    fun loadHistoryAround(startMessageId: Long, limit: Int = 50) {
+        isLoadingHistory = true
+        scope.launch {
+            try {
+                val rawMessages = messagesRepository.getChatHistory(chatId, startMessageId, 0, limit)
+
+                if (rawMessages.isNotEmpty()) {
+                    canLoadNewer = true
+                    isAtLiveHead = false
+                    processAndEmitMessages(rawMessages)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                isLoadingHistory = false
+            }
+        }
+    }
+
+    fun loadMoreNewer(limit: Int = 50) {
+        if (isLoadingHistory || !canLoadNewer) return
+        isLoadingHistory = true
+
+        scope.launch {
+            try {
+                val fromMessageId = when (val firstItem = _items.value.firstOrNull()) {
+                    is MessageListItem.MessageItem -> firstItem.message.id
+                    is MessageListItem.AlbumItem -> firstItem.messages.first().id
+                    null -> 0L
+                }
+
+                if (fromMessageId == 0L) {
+                    isLoadingHistory = false
+                    return@launch
+                }
+
+                val rawMessages = messagesRepository.getChatHistory(chatId, fromMessageId, -limit, limit)
+
+                if (rawMessages.isEmpty()) {
+                    canLoadNewer = false
+                    isAtLiveHead = true
+                } else {
+                    processAndEmitMessages(rawMessages)
+                    if (rawMessages.size < limit) {
+                        canLoadNewer = false
+                        isAtLiveHead = true
+                    }
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
@@ -291,5 +349,26 @@ class ChatHistoryProcessor(
 
     fun processChatAction(chatAction: ChatAction) {
         _action.value = chatAction
+    }
+
+    fun getMessagesToId(endId: Long) : List<Message> {
+        val messages = _items.value.map {
+            when(it) {
+                is MessageListItem.MessageItem -> listOf(it.message)
+                is MessageListItem.AlbumItem -> it.messages
+            }
+        }.flatten()
+        return messages.slice(0..messages.indexOfFirst { it.id == endId })
+    }
+
+    fun getMessagesFromId(startId: Long) : List<Message> {
+        val messages = _items.value.map {
+            when(it) {
+                is MessageListItem.MessageItem -> listOf(it.message)
+                is MessageListItem.AlbumItem -> it.messages
+            }
+        }.flatten()
+        val index = messages.indexOfFirst { it.id == startId }
+        return messages.slice(index..messages.lastIndex)
     }
 }

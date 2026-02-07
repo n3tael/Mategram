@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.22.1)
 
 project("jni")
 
-
 include("${CMAKE_HOME_DIRECTORY}/cmake/ReadVariables.cmake")
 include("${CMAKE_HOME_DIRECTORY}/cmake/Prefix.cmake")
 include("${CMAKE_HOME_DIRECTORY}/cmake/Join.cmake")
@@ -165,7 +164,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
             -Wno-macro-redefined -Wno-unused-variable
             -fno-math-errno -fno-strict-aliasing -funroll-loops
             -fassociative-math -freciprocal-math -fno-signed-zeros
-            -fno-rtti
+            -frtti
             -fvisibility=hidden
             -march=native
             -ftree-vectorize -fvectorize
@@ -178,7 +177,7 @@ else()
             -Wno-macro-redefined -Wno-unused-variable
             -fno-math-errno -fno-strict-aliasing -funroll-loops
             -fassociative-math
-            -fno-rtti
+            -frtti
             -fvisibility=hidden
     )
 endif()

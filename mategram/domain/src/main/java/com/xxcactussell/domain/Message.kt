@@ -1,5 +1,7 @@
 package com.xxcactussell.domain
 
+import com.xxcactussell.customdomain.ForwardFullInfo
+
 data class Message(
     val id: Long,
     val senderId: MessageSender,
@@ -38,5 +40,6 @@ data class Message(
     val effectId: Long,
     val restrictionInfo: RestrictionInfo? = null,
     val content: MessageContent,
-    val replyMarkup: ReplyMarkup? = null
+    val replyMarkup: ReplyMarkup? = null,
+    val forwardFullInfo: ForwardFullInfo? = null
 ) : Object

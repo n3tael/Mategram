@@ -7,9 +7,11 @@ import com.xxcactussell.data.impl.CustomEmojiStickerRepositoryImpl
 import com.xxcactussell.data.impl.FileHelperImpl
 import com.xxcactussell.data.impl.FileRepositoryImpl
 import com.xxcactussell.data.impl.LanguageRepositoryImpl
+import com.xxcactussell.data.impl.MediaRepositoryImpl
 import com.xxcactussell.data.impl.MessagesRepositoryImpl
 import com.xxcactussell.data.impl.ProfilesRepositoryImpl
 import com.xxcactussell.data.impl.TdClientManagerImpl
+import com.xxcactussell.player.MediaRepository
 import com.xxcactussell.repositories.auth.repository.AuthRepository
 import com.xxcactussell.repositories.chats.repository.ChatsRepository
 import com.xxcactussell.repositories.files.repository.FileRepository
@@ -48,6 +50,10 @@ abstract class RepositoryModule {
     @Singleton
     @Binds
     abstract fun bindFileRepository(impl: FileRepositoryImpl) : FileRepository
+
+    @Singleton
+    @Binds
+    abstract fun bindMediaRepository(impl: MediaRepositoryImpl) : MediaRepository
 
     @Singleton
     @Binds

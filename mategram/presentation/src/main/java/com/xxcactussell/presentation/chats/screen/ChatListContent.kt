@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -33,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.SearchBarValue
 import androidx.compose.material3.Text
@@ -68,7 +70,7 @@ import kotlinx.coroutines.launch
 fun ChatListContent(
     state: ChatListUiState,
     onEvent: (ChatsEvent) -> Unit,
-    onChatClick: (Long) -> Unit,
+    onChatClick: (Long, Long?, Long?) -> Unit,
     onFabClicked: () -> Unit,
     onAvatarClicked: () -> Unit
 ) {

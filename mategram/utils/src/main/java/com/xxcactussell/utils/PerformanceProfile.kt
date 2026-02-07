@@ -11,9 +11,10 @@ object PerformanceProfile {
     val minFrameDelay = (1000L / targetFps)
 
     fun getResolutionScale(isEmoji: Boolean): Float {
-        return when {
-            isHighEnd -> if (isEmoji) 0.7f else 1.0f
-            else -> if (isEmoji) 0.5f else 0.7f
-        }
+        return 1f
+//        return when {
+//            isHighEnd -> if (isEmoji) 0.7f else 1.0f
+//            else -> if (isEmoji) 0.5f else 0.7f
+//        }
     }
 }

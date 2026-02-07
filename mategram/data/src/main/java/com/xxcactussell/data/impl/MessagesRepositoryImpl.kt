@@ -1,5 +1,7 @@
 package com.xxcactussell.data.impl
 
+import com.xxcactussell.customdomain.ForwardFullInfo
+import com.xxcactussell.customdomain.ForwardInfoLink
 import com.xxcactussell.data.TdClientManager
 import com.xxcactussell.data.utils.ChatHistoryProcessor
 import com.xxcactussell.data.utils.mappers.chat.toDomain
@@ -12,6 +14,11 @@ import com.xxcactussell.domain.Chat
 import com.xxcactussell.domain.ChatAction
 import com.xxcactussell.domain.InputMessageContent
 import com.xxcactussell.domain.Message
+import com.xxcactussell.domain.MessageOrigin
+import com.xxcactussell.domain.MessageOriginChannel
+import com.xxcactussell.domain.MessageOriginChat
+import com.xxcactussell.domain.MessageOriginHiddenUser
+import com.xxcactussell.domain.MessageOriginUser
 import com.xxcactussell.domain.MessageReplyToMessage
 import com.xxcactussell.domain.MessageSender
 import com.xxcactussell.domain.MessageSenderChat
@@ -103,7 +110,7 @@ class MessagesRepositoryImpl @Inject constructor(
             .launchIn(repositoryScope)
     }
 
-    private fun getProcessor(chatId: Long): ChatHistoryProcessor {
+    fun getProcessor(chatId: Long): ChatHistoryProcessor {
         return chatProcessors[chatId] ?: synchronized(processorsLock) {
             chatProcessors.getOrPut(chatId) {
                 ChatHistoryProcessor(chatId, clientManager, this, repositoryScope)
@@ -119,8 +126,12 @@ class MessagesRepositoryImpl @Inject constructor(
         return getProcessor(chatId).action
     }
 
-    override fun loadMoreHistory(chatId: Long) {
-        getProcessor(chatId).loadMoreHistory()
+    override fun loadMoreHistory(chatId: Long, messageId: Long?) {
+        if (messageId == null) { getProcessor(chatId).loadMoreHistory() } else { getProcessor(chatId).loadHistoryAround(messageId) }
+    }
+
+    override fun loadMoreNewer(chatId: Long) {
+        getProcessor(chatId).loadMoreNewer()
     }
 
     override fun clearChatSession(chatId: Long) {
@@ -168,7 +179,7 @@ class MessagesRepositoryImpl @Inject constructor(
     }
 
     suspend fun getMessagesWithAlbumBoundary(chatId: Long, fromMessageId: Long, limit: Int): List<Message> {
-        var messages = getChatHistory(chatId, fromMessageId, limit)
+        var messages = getChatHistory(chatId, fromMessageId,  0, limit)
         if (messages.isNotEmpty()) {
             val oldestMessage = messages.last()
             if (oldestMessage.mediaAlbumId != 0L) {
@@ -181,9 +192,9 @@ class MessagesRepositoryImpl @Inject constructor(
         return messages
     }
 
-    override suspend fun getChatHistory(chatId: Long, fromMessageId: Long, limit: Int): List<Message> {
+    override suspend fun getChatHistory(chatId: Long, fromMessageId: Long, offset: Int, limit: Int): List<Message> {
         val initialMessages = suspendCancellableCoroutine { continuation ->
-            clientManager.send(TdApi.GetChatHistory(chatId, fromMessageId, 0, limit, false)) { result ->
+            clientManager.send(TdApi.GetChatHistory(chatId, fromMessageId, offset, limit, false)) { result ->
                 if (continuation.isActive) {
                     when (result) {
                         is TdApi.Messages -> {
@@ -198,7 +209,7 @@ class MessagesRepositoryImpl @Inject constructor(
         return coroutineScope {
             initialMessages.map { message ->
                 async {
-                    if (message.replyTo != null && message.replyTo is MessageReplyToMessage) {
+                    var newMessage = if (message.replyTo != null && message.replyTo is MessageReplyToMessage) {
                         val replyChatId = (message.replyTo as MessageReplyToMessage).chatId
                         val replyMessageId = (message.replyTo as MessageReplyToMessage).messageId
                         val loadedReply = getReplyMessage(replyChatId, replyMessageId)
@@ -206,6 +217,55 @@ class MessagesRepositoryImpl @Inject constructor(
                     } else {
                         message
                     }
+
+                    newMessage = if (message.forwardInfo != null) {
+                        when(val origin = message.forwardInfo!!.origin) {
+                            is MessageOriginUser -> {
+                                val originChat = getUser(origin.senderUserId)
+                                newMessage.copy(
+                                    forwardFullInfo = ForwardFullInfo(
+                                        isHidden = false,
+                                        chat = originChat?.firstName + " " + originChat?.lastName,
+                                        link = ForwardInfoLink(
+                                            chatId = origin.senderUserId
+                                        )
+                                    )
+                                )
+                            }
+                            is MessageOriginChat -> {
+                                val originChat = getChat(origin.senderChatId)
+                                newMessage.copy(
+                                    forwardFullInfo = ForwardFullInfo(
+                                        isHidden = false,
+                                        chat = originChat?.title,
+                                        signature = origin.authorSignature,
+                                        link = ForwardInfoLink(
+                                            chatId = origin.senderChatId
+                                        )
+                                    )
+                                )
+                            }
+                            is MessageOriginChannel -> {
+                                val originChat = getChat(origin.chatId)
+                                newMessage.copy(
+                                    forwardFullInfo = ForwardFullInfo(
+                                        isHidden = false,
+                                        chat = originChat?.title,
+                                        signature = origin.authorSignature,
+                                        link = ForwardInfoLink(
+                                            chatId = origin.chatId,
+                                            messageId = origin.messageId
+                                        )
+                                    )
+                                )
+                            }
+                            is MessageOriginHiddenUser -> newMessage.copy(forwardFullInfo = ForwardFullInfo(isHidden = true))
+                        }
+                    } else {
+                        newMessage
+                    }
+
+                    newMessage
                 }
             }.awaitAll()
         }

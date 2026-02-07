@@ -11,12 +11,16 @@ import com.xxcactussell.domain.MessagePhoto
 import com.xxcactussell.domain.MessageSticker
 import com.xxcactussell.domain.MessageText
 import com.xxcactussell.domain.MessageVideo
+import com.xxcactussell.domain.MessageVideoNote
+import com.xxcactussell.domain.MessageVoiceNote
+import com.xxcactussell.player.PlayerState
 import com.xxcactussell.presentation.messages.model.MessageUiItem
 
 @Composable
 fun MessageItemContent(
     modifier: Modifier = Modifier,
     message: MessageUiItem,
+    playerState: PlayerState,
     isDateShown: Boolean = false,
     topCorner: Dp,
     bottomCorner: Dp,
@@ -27,6 +31,7 @@ fun MessageItemContent(
     onReplyClicked: (Long) -> Unit,
     onMediaClicked: (Long) -> Unit,
     onEvent: (Any) -> Unit,
+    onLinkClicked: (Long, Long?) -> Unit,
     replyProgress: @Composable () -> Unit
 ) {
     when(message) {
@@ -42,6 +47,8 @@ fun MessageItemContent(
                 && content !is MessagePhoto
                 && content !is MessageVideo
                 && content !is MessageDocument
+                && content !is MessageVoiceNote
+                && content !is MessageVideoNote
             ) {
                 SystemServiceMessage(message = message)
             } else {
@@ -50,7 +57,8 @@ fun MessageItemContent(
                         content !is MessageAnimatedEmoji &&
                         !(content is MessageAnimation && content.caption.text.isEmpty()) &&
                         !(content is MessagePhoto && content.caption.text.isEmpty()) &&
-                        !(content is MessageVideo && content.caption.text.isEmpty())
+                        !(content is MessageVideo && content.caption.text.isEmpty()) &&
+                        content !is MessageVideoNote
 
                 BubbleMessage(
                     modifier = modifier,
@@ -66,9 +74,10 @@ fun MessageItemContent(
                     isUnread = isUnread,
                     onEvent = onEvent,
                     replyProgress = replyProgress,
+                    onLinkClicked = onLinkClicked,
                     onReplyClicked = onReplyClicked
                 ) {
-                    MessageContent(message = message, onMediaClicked = onMediaClicked, onEvent = onEvent)
+                    MessageContent(message = message, playerState = playerState, onMediaClicked = onMediaClicked, onEvent = onEvent)
                 }
             }
         }
@@ -96,6 +105,7 @@ fun MessageItemContent(
                 onEvent = onEvent,
                 replyProgress = replyProgress,
                 onReplyClicked = onReplyClicked,
+                onLinkClicked = onLinkClicked,
                 {
                     MessageAlbum(messages = message.messages, onMediaClicked = onMediaClicked)
                 },

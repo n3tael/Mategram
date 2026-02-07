@@ -10,26 +10,34 @@ import androidx.compose.runtime.getValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.xxcactussell.presentation.chats.model.ChatEffect
 import com.xxcactussell.presentation.messages.model.InputEvent
+import com.xxcactussell.presentation.messages.model.MessagesEvent
 import com.xxcactussell.presentation.messages.viewmodel.MessagesViewModel
 import com.xxcactussell.presentation.messages.viewmodel.MessagesViewModelFactory
 
 @Composable
 fun MessagesScreen(
     chatId: Long,
+    startMessageId: Long? = null,
+    lastReadInboxMessageId: Long? = null,
     onProfileClicked: (Long) -> Unit,
     onCameraClicked: () -> Unit,
     onBackHandled: () -> Unit,
+    onLinkClicked: (Long, Long?) -> Unit,
     onMediaClicked: (Long) -> Unit,
 ) {
     val viewModel: MessagesViewModel = hiltViewModel(
         creationCallback = { factory: MessagesViewModelFactory ->
-            factory.create(chatId)
+            factory.create(chatId, startMessageId, lastReadInboxMessageId)
         },
         key = "messages_screen_$chatId"
     )
 
-    val state by viewModel.uiState.collectAsState()
+    LaunchedEffect(chatId, startMessageId, lastReadInboxMessageId) {
+        viewModel.onEvent(MessagesEvent.Initialize(startMessageId, lastReadInboxMessageId))
+    }
 
+    val state by viewModel.uiState.collectAsState()
+    val playerState by viewModel.playerState.collectAsState()
     val effectsFlow = viewModel.effects
 
     val mediaPickerLauncher = rememberLauncherForActivityResult(
@@ -80,10 +88,12 @@ fun MessagesScreen(
 
     MessagesContent(
         state = state,
+        playerState = playerState,
         onProfileClicked = onProfileClicked,
         onEvent = viewModel::onEvent,
         onCameraClicked = onCameraClicked,
         onBackHandle = onBackHandled,
+        onLinkClicked = onLinkClicked,
         onMediaClicked = onMediaClicked
     )
 }

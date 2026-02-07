@@ -7,15 +7,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import com.xxcactussell.jni.StickerAnimScheduler
 import com.xxcactussell.jni.StickerController
 import com.xxcactussell.jni.StickerRegistry
-import com.xxcactussell.jni.VisibilityState
 import com.xxcactussell.utils.PerformanceProfile
 import kotlin.math.roundToInt
 
@@ -33,8 +30,13 @@ fun Sticker(
         StickerRegistry.acquire(path, sourceHash, targetSizePx, targetSizePx)
     }
 
-    DisposableEffect(sourceHash) {
-        onDispose { StickerRegistry.release(sourceHash) }
+    DisposableEffect(controller) {
+        if (controller != null) {
+            StickerAnimScheduler.add(controller)
+        }
+        onDispose {
+            StickerRegistry.release(path, targetSizePx, targetSizePx)
+        }
     }
 
     if (controller != null) {
@@ -44,18 +46,7 @@ fun Sticker(
 
         StickerPlayer(
             controller = controller,
-            modifier = modifier
-                .size(displaySize.first, displaySize.second)
-                .onGloballyPositioned { coords ->
-                    val y = coords.positionInWindow().y
-                    val screenHeight = 2500f
-                    val state = when {
-                        y < -500f || y > screenHeight + 500f -> VisibilityState.HIDDEN
-                        y !in 0.0..screenHeight.toDouble() -> VisibilityState.PREPARING
-                        else -> VisibilityState.VISIBLE
-                    }
-                    StickerAnimScheduler.updateState(controller, state)
-                }
+            modifier = modifier.size(displaySize.first, displaySize.second)
         )
     } else {
         Spacer(modifier = modifier.size(size))
@@ -68,23 +59,34 @@ fun StickerPlayer(
     modifier: Modifier = Modifier
 ) {
     var frameTick by remember { mutableStateOf(0L) }
+    var isContentReady by remember(controller) { mutableStateOf(controller.hasRenderedFirstFrame) }
+
     val imageBitmap = remember(controller) { controller.bitmap.asImageBitmap() }
 
     DisposableEffect(controller) {
-        controller.onFrameReady = {
+        val listener: () -> Unit = {
             frameTick++
+            if (!isContentReady) {
+                isContentReady = true
+            }
         }
-        onDispose { controller.onFrameReady = null }
+
+        controller.addFrameListener(listener)
+
+        onDispose {
+            controller.removeFrameListener(listener)
+        }
     }
 
     Canvas(modifier = modifier) {
         @Suppress("unused", "UnusedVariable") val tick = frameTick
-
-        drawImage(
-            image = imageBitmap,
-            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
-            filterQuality = if (PerformanceProfile.isLowEnd) FilterQuality.None else FilterQuality.Low
-        )
+        if (isContentReady) {
+            drawImage(
+                image = imageBitmap,
+                dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+                filterQuality = if (PerformanceProfile.isLowEnd) FilterQuality.None else FilterQuality.Low
+            )
+        }
     }
 }
 

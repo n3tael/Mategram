@@ -1,18 +1,16 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
-}
-
-android {
-    namespace = "com.xxcactussell.mategram.domain"
-    compileSdk = 36
-    defaultConfig {
-        minSdk = 31
-    }
 }
 
 kotlin {
     jvmToolchain(21)
+    android {
+        namespace = "com.xxcactussell.mategram.domain"
+        compileSdk = 36
+        defaultConfig {
+            minSdk = 31
+        }
+    }
 }
 
 dependencies {
