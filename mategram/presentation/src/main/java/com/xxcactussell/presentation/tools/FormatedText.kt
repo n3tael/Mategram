@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.LocalBackgroundTextMeasurementExecutor
-import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -36,7 +35,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
@@ -44,6 +42,7 @@ import com.xxcactussell.domain.File
 import com.xxcactussell.domain.FormattedText
 import com.xxcactussell.domain.Sticker
 import com.xxcactussell.domain.StickerFormat
+import com.xxcactussell.domain.StickerFullTypeCustomEmoji
 import com.xxcactussell.domain.TextEntity
 import com.xxcactussell.domain.TextEntityType
 import com.xxcactussell.domain.TextEntityTypeBlockQuote
@@ -71,7 +70,8 @@ import kotlin.math.min
 data class StaticEmojiData(
     val fileId: Int,
     val stickerFormat: StickerFormat,
-    val customEmojiId: Long
+    val customEmojiId: Long,
+    val needRepaint: Boolean
 )
 
 data class FormattedTextUiState(
@@ -143,6 +143,7 @@ fun FormattedTextView(
                         fileId = emojiData.fileId,
                         size = dpSize.value.dp,
                         filesFlow = filesFlow,
+                        color = if (emojiData.needRepaint) color else Color.Unspecified,
                         onDownloadRequest = { rootViewModel.downloadFile(it) }
                     )
                 }
@@ -213,6 +214,7 @@ private fun SmartEmojiBox(
     fileId: Int,
     size: androidx.compose.ui.unit.Dp,
     filesFlow: Flow<Map<Int, File>>,
+    color: Color? = Color.Unspecified,
     onDownloadRequest: (Int) -> Unit
 ) {
     val file by produceState<File?>(initialValue = null, key1 = fileId) {
@@ -227,7 +229,7 @@ private fun SmartEmojiBox(
     val needsDownload = file == null || (!file!!.local.isDownloadingActive && !file!!.local.isDownloadingCompleted)
 
     if (path != null) {
-        Sticker(path, size)
+        Sticker(modifier = Modifier, path, size, color)
     } else {
         Spacer(Modifier.size(size))
         if (needsDownload) {
@@ -288,7 +290,8 @@ private fun mapToUiState(
                     inlineContentMap[emojiIdKey] = StaticEmojiData(
                         fileId = sticker.sticker.id,
                         stickerFormat = sticker.format,
-                        customEmojiId = type.customEmojiId
+                        customEmojiId = type.customEmojiId,
+                        needRepaint = (sticker.fullType as? StickerFullTypeCustomEmoji)?.needsRepainting ?: false
                     )
                 }
             }

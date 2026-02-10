@@ -398,7 +398,7 @@ fun MessagesContent(
                         if (message.getMessageSenderId() == nextPersonId) {
                             if (timeDifferenceSeconds > FIVE_MINUTES_SECONDS
                                 || currentReplyTo != null
-                                ) {
+                            ) {
                                 18.dp
                             } else {
                                 4.dp
@@ -553,9 +553,9 @@ fun MessagesContent(
                                 onEvent(MessagesEvent.MessageClicked(message.getMessageId()))
                             }
                         state.chat?.type is ChatTypeSupergroup && (state.chat.type as ChatTypeSupergroup).isChannel && !message.isServiceMessage() -> Modifier.clickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                                onEvent(MessagesEvent.MessageClicked(message.getMessageId()))
-                            }
+                            haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                            onEvent(MessagesEvent.MessageClicked(message.getMessageId()))
+                        }
                         else -> Modifier
                     }
 

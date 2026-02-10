@@ -2,6 +2,7 @@ package com.xxcactussell.jni
 
 import android.graphics.Bitmap
 import android.graphics.ColorSpace
+import android.hardware.HardwareBuffer
 import androidx.annotation.Keep
 import androidx.core.graphics.createBitmap
 import kotlinx.coroutines.CoroutineScope
@@ -16,14 +17,15 @@ class StickerController(
     val targetWidth: Int,
     val targetHeight: Int,
     private val cacheDirPath: String? = null,
-    private val sourceHash: String = ""
+    private val sourceHash: String = "",
+    private val color: Int = 0,
 ) : Closeable {
 
     enum class StickerType(val id: Int) { LOTTIE(0), WEBP(1), VP9(2) }
 
     @Volatile private var nativePtr: Long = 0
     @Volatile private var nativeBufferPtr: Long = 0
-    private var hardwareBuffer: android.hardware.HardwareBuffer? = null
+    private var hardwareBuffer: HardwareBuffer? = null
 
     @Volatile var isReleased = false
         private set
@@ -87,15 +89,16 @@ class StickerController(
             StickerType.VP9 -> NativeStickerCore.prepareVpxRendering(nativePtr, renderWidth, renderHeight)
         }
 
+        var createdBitmap: Bitmap? = null
         val ptrOut = LongArray(1)
         val hwBuf = NativeStickerCore.acquireNativeBuffer(renderWidth, renderHeight, ptrOut)
         if (hwBuf != null) {
             hardwareBuffer = hwBuf
             nativeBufferPtr = ptrOut[0]
-            bitmap = Bitmap.wrapHardwareBuffer(hwBuf, ColorSpace.get(ColorSpace.Named.SRGB))!!
-        } else {
-            bitmap = createBitmap(renderWidth, renderHeight)
+            createdBitmap = Bitmap.wrapHardwareBuffer(hwBuf, ColorSpace.get(ColorSpace.Named.SRGB))
         }
+
+        bitmap = createdBitmap ?: createBitmap(renderWidth, renderHeight)
 
         if (type == StickerType.LOTTIE) {
             totalFrames = NativeStickerCore.getLottieFrameCount(nativePtr).coerceAtLeast(1)
@@ -114,6 +117,8 @@ class StickerController(
                         doUpdateFrame(currentTimeMs)
                         nextFrameTimeMs = currentTimeMs + frameDelayMs
                     }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 } finally {
                     decodingMutex.unlock()
                 }
@@ -134,14 +139,21 @@ class StickerController(
             currentFrameIdx++
         }
 
+        val colorSuffix = if (color != 0) "_c$color" else ""
         val cachePath = if (cacheDirPath != null) {
-            "$cacheDirPath/${sourceHash}_${renderWidth}x${renderHeight}_$frameIdx.zstd"
+            "$cacheDirPath/${sourceHash}_${renderWidth}x${renderHeight}_$frameIdx$colorSuffix.zstd"
         } else ""
 
-        NativeStickerCore.renderAsync(type.id, ptr, bufPtr, frameIdx, cachePath, nativeCallback)
+        NativeStickerCore.renderAsync(type.id, ptr, bufPtr, frameIdx, color, cachePath, nativeCallback)
     }
 
-    fun checkNewFrameAvailable(): Boolean = newFrameAvailable.also { newFrameAvailable = false }
+    fun checkNewFrameAvailable(): Boolean {
+        if (newFrameAvailable) {
+            newFrameAvailable = false
+            return true
+        }
+        return false
+    }
 
     fun addFrameListener(listener: () -> Unit) {
         listeners.addIfAbsent(listener)
@@ -152,7 +164,9 @@ class StickerController(
     }
 
     fun dispatchFrameReady() {
-        listeners.forEach { it.invoke() }
+        for (listener in listeners) {
+            listener.invoke()
+        }
     }
 
     override fun close() {
@@ -162,18 +176,23 @@ class StickerController(
         listeners.clear()
         StickerAnimScheduler.remove(this)
 
-        if (nativePtr != 0L) {
-            when (type) {
-                StickerType.LOTTIE -> NativeStickerCore.destroyLottieHandle(nativePtr)
-                StickerType.WEBP -> NativeStickerCore.destroyWebPHandle(nativePtr)
-                StickerType.VP9 -> NativeStickerCore.destroyVpxHandle(nativePtr)
-            }
+        val ptr = nativePtr
+        if (ptr != 0L) {
             nativePtr = 0L
+            when (type) {
+                StickerType.LOTTIE -> NativeStickerCore.destroyLottieHandle(ptr)
+                StickerType.WEBP -> NativeStickerCore.destroyWebPHandle(ptr)
+                StickerType.VP9 -> NativeStickerCore.destroyVpxHandle(ptr)
+            }
         }
 
-        if (nativeBufferPtr != 0L) {
-            NativeStickerCore.releaseNativeBuffer(nativeBufferPtr)
+        hardwareBuffer?.close()
+        hardwareBuffer = null
+
+        val bufPtr = nativeBufferPtr
+        if (bufPtr != 0L) {
             nativeBufferPtr = 0L
+            NativeStickerCore.releaseNativeBuffer(bufPtr)
         }
     }
 }

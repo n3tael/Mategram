@@ -182,6 +182,7 @@ fun MessagePreview(message: Message) {
             text = state.text,
             style = MaterialTheme.typography.bodyMedium,
             overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             clickable = false
         )

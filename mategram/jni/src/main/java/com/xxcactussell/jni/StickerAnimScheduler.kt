@@ -10,12 +10,13 @@ import java.util.concurrent.ConcurrentHashMap
 
 object StickerAnimScheduler {
     private val activeStickers = ConcurrentHashMap.newKeySet<StickerController>()
-
-    private val choreographer = Choreographer.getInstance()
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    private var choreographer: Choreographer? = null
 
     @Volatile
     private var isRunning = false
+
     private val decoderScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     private val frameCallback = object : Choreographer.FrameCallback {
@@ -43,14 +44,14 @@ object StickerAnimScheduler {
                 }
             }
 
-            choreographer.postFrameCallback(this)
+            choreographer?.postFrameCallback(this)
         }
     }
 
     fun add(sticker: StickerController) {
         if (sticker.isReleased) return
         if (activeStickers.add(sticker)) {
-            checkRunningState()
+            scheduleStart()
         }
     }
 
@@ -58,14 +59,27 @@ object StickerAnimScheduler {
         activeStickers.remove(sticker)
     }
 
-    private fun checkRunningState() {
-        if (!isRunning && activeStickers.isNotEmpty()) {
-            isRunning = true
-            if (Looper.myLooper() == Looper.getMainLooper()) {
-                choreographer.postFrameCallback(frameCallback)
-            } else {
-                mainHandler.post { choreographer.postFrameCallback(frameCallback) }
-            }
+    private fun scheduleStart() {
+        if (isRunning) return
+
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            startInternal()
+        } else {
+            mainHandler.post { startInternal() }
         }
+    }
+
+    private fun startInternal() {
+        if (isRunning) return
+        if (activeStickers.isEmpty()) return
+
+        isRunning = true
+
+        if (choreographer == null) {
+            choreographer = Choreographer.getInstance()
+        }
+
+        choreographer?.removeFrameCallback(frameCallback)
+        choreographer?.postFrameCallback(frameCallback)
     }
 }

@@ -19,14 +19,14 @@ object StickerRegistry {
     private data class CacheKey(
         val path: String,
         val width: Int,
-        val height: Int
+        val height: Int,
+        val color: Int
     )
 
     private val cache = mutableMapOf<CacheKey, SharedController>()
 
-    fun acquire(path: String, hash: String, width: Int, height: Int): StickerController? {
-        // Создаем уникальный ключ для текущего запроса
-        val key = CacheKey(path, width, height)
+    fun acquire(path: String, hash: String, width: Int, height: Int, tintColorInt: Int): StickerController {
+        val key = CacheKey(path, width, height, tintColorInt)
 
         synchronized(cache) {
             cache[key]?.let {
@@ -47,15 +47,15 @@ object StickerRegistry {
                 File(path).readBytes()
             }
 
-            val controller = StickerController(type, source, width, height, sourceHash = hash)
+            val controller = StickerController(type, source, width, height, sourceHash = hash, color = tintColorInt)
 
             cache[key] = SharedController(controller)
             return controller
         }
     }
 
-    fun release(path: String, width: Int, height: Int) {
-        val key = CacheKey(path, width, height)
+    fun release(path: String, width: Int, height: Int, color: Int) {
+        val key = CacheKey(path, width, height, color)
 
         synchronized(cache) {
             val shared = cache[key] ?: return

@@ -46,5 +46,5 @@ object NativeStickerCore {
     external fun releaseNativeBuffer(ptr: Long)
     external fun acquireNativeBuffer(w: Int, h: Int, outPtr: LongArray): HardwareBuffer?
 
-    external fun renderAsync(type: Int, ptr: Long, bufferPtr: Long, frame: Int, cachePath: String, listener: Any)
+    external fun renderAsync(type: Int, ptr: Long, bufferPtr: Long, frame: Int, color: Int, cachePath: String, listener: Any)
 }

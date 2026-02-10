@@ -19,6 +19,7 @@ fun ColumnWidthOf(
     Layout(content = content, modifier = modifier) { measurables, constraints ->
         val rulerMeasurable = measurables.firstOrNull { it.layoutId == rulerId }
         val otherMeasurables = measurables.filter { it.layoutId != rulerId }
+
         if (rulerMeasurable == null) {
             val placeables = measurables.map { it.measure(constraints) }
             val width = placeables.maxOfOrNull { it.width } ?: 0
@@ -31,24 +32,35 @@ fun ColumnWidthOf(
                 }
             }
         }
+
         val rulerPlaceable = rulerMeasurable.measure(constraints)
         val width = rulerPlaceable.width
         val otherConstraints = constraints.copy(minWidth = width, maxWidth = width)
         val otherPlaceables = otherMeasurables.map { it.measure(otherConstraints) }
-        val allPlaceables = mutableMapOf<Any, Placeable>()
-        allPlaceables[rulerId] = rulerPlaceable
-        otherPlaceables.forEachIndexed { index, placeable ->
-            allPlaceables[otherMeasurables[index].layoutId ?: index] = placeable
-        }
+
         val spacerHeight = horizontalSpacers.roundToPx()
-        val height = rulerPlaceable.height + otherPlaceables.sumOf { it.height } + (spacerHeight * otherPlaceables.size - 1)
-        layout(width, height) {
+
+        val totalSpacersHeight = if (measurables.size > 1) {
+            (measurables.size - 1) * spacerHeight
+        } else {
+            0
+        }
+
+        val totalHeight = rulerPlaceable.height + otherPlaceables.sumOf { it.height } + totalSpacersHeight
+
+        layout(width, totalHeight) {
             var yPosition = 0
+
             measurables.forEach { measurable ->
-                val placeable = allPlaceables[measurable.layoutId]
-                    ?: otherPlaceables.find { it.parentData == measurable.parentData }
-                placeable?.placeRelative(0, yPosition)
-                yPosition += (placeable?.height ?: 0) + (if (measurables.last() != measurable) spacerHeight else 0)
+                val placeable = if (measurable.layoutId == rulerId) {
+                    rulerPlaceable
+                } else {
+                    val index = otherMeasurables.indexOf(measurable)
+                    otherPlaceables[index]
+                }
+
+                placeable.placeRelative(0, yPosition)
+                yPosition += placeable.height + (if (measurable != measurables.last()) spacerHeight else 0)
             }
         }
     }

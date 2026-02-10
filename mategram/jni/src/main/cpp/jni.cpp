@@ -280,6 +280,21 @@ void forgetInstance(jlong ptr) {
     gInstances.erase(ptr);
 }
 
+
+struct RgbColor {
+    float r, g, b;
+    bool isValid;
+};
+
+RgbColor extractColor(jint color) {
+    if (color == 0) return {0, 0, 0, false};
+
+    float r = ((color >> 16) & 0xFF) / 255.0f;
+    float g = ((color >> 8) & 0xFF) / 255.0f;
+    float b = (color & 0xFF) / 255.0f;
+    return {r, g, b, true};
+}
+
 class LottieInstance : public StickerInstance {
 public:
     std::unique_ptr<rlottie::Animation> animation{};
@@ -318,8 +333,21 @@ public:
         }
     }
 
-    void render(int frame, void* dstPixels, int dstStride) {
+    uint32_t lastColor = 0;
+
+    void render(int frame, void* dstPixels, int dstStride, int color) {
         if (!animation || !renderBuffer) return;
+
+        if (color != lastColor) {
+            RgbColor rgb = extractColor(color);
+            if (rgb.isValid) {
+                rlottie::Color lottieColor(rgb.r, rgb.g, rgb.b);
+
+                animation->setValue<rlottie::Property::FillColor>("**", lottieColor);
+                animation->setValue<rlottie::Property::StrokeColor>("**", lottieColor);
+            }
+            lastColor = color;
+        }
 
         auto start = std::chrono::high_resolution_clock::now();
 
@@ -922,7 +950,7 @@ Java_com_xxcactussell_jni_NativeStickerCore_prepareVpxRendering(JNIEnv*, jobject
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_xxcactussell_jni_NativeStickerCore_renderAsync(JNIEnv* env, jobject, jint type, jlong ptr, jlong bufPtr, jint frame, jstring cachePath, jobject listener) {
+Java_com_xxcactussell_jni_NativeStickerCore_renderAsync(JNIEnv* env, jobject, jint type, jlong ptr, jlong bufPtr, jint frame, jint color, jstring cachePath, jobject listener) {
     const char* cPath = env->GetStringUTFChars(cachePath, nullptr);
     std::string path(cPath ? cPath : "");
     if (cPath) env->ReleaseStringUTFChars(cachePath, cPath);
@@ -939,7 +967,7 @@ Java_com_xxcactussell_jni_NativeStickerCore_renderAsync(JNIEnv* env, jobject, ji
         }
     }
 
-    gQueueManager.enqueue(StickerPriority::STICKER, [type, inst, bufPtr, frame, path]() {
+    gQueueManager.enqueue(StickerPriority::STICKER, [type, inst, bufPtr, frame, path, color]() {
         if (!gJavaVM) return;
         JNIEnv* localEnv;
         bool attached = false;
@@ -991,7 +1019,7 @@ Java_com_xxcactussell_jni_NativeStickerCore_renderAsync(JNIEnv* env, jobject, ji
                     if (!inst->isDestroyed) {
                         if (type == 0) {
                             auto lottie = std::dynamic_pointer_cast<LottieInstance>(inst);
-                            if (lottie) { lottie->render(frame, dst, byteStride); delay = 0; }
+                            if (lottie) { lottie->render(frame, dst, byteStride, color); delay = 0; }
                         } else if (type == 1) {
                             auto webp = std::dynamic_pointer_cast<WebPInstance>(inst);
                             if (webp) { delay = webp->renderNext(dst, byteStride, false); webp->frameIndex++; }

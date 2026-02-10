@@ -127,40 +127,7 @@ fun MategramNavigation(
                             entry<RouteChatList>(
                                 metadata = ListDetailSceneStrategy.listPane(
                                     sceneKey = "ChatLDPane"
-                                ) + NavDisplay.transitionSpec {
-                                    slideInHorizontally(
-                                        initialOffsetX = { (it * 1.1).toInt() }
-                                    ) + fadeIn() togetherWith slideOutHorizontally(
-                                        targetOffsetX = { -(it * 0.1).toInt() }
-                                    ) + scaleOut(
-                                        targetScale = 0.92f,
-                                        transformOrigin = TransformOrigin(0.5f, 0.5f),
-                                    ) + fadeOut(
-                                        targetAlpha = 0.7f
-                                    )
-                                } + NavDisplay.popTransitionSpec {
-                                    slideInHorizontally(
-                                        initialOffsetX = { (it * 1.1).toInt() }
-                                    ) + fadeIn() togetherWith slideOutHorizontally(
-                                        targetOffsetX = { -(it * 0.1).toInt() }
-                                    ) + scaleOut(
-                                        targetScale = 0.92f,
-                                        transformOrigin = TransformOrigin(0.5f, 0.5f),
-                                    ) + fadeOut(
-                                        targetAlpha = 0.7f
-                                    )
-                                } + NavDisplay.predictivePopTransitionSpec {
-                                    slideInHorizontally(
-                                        initialOffsetX = { (it * 1.1).toInt() }
-                                    ) + fadeIn() togetherWith slideOutHorizontally(
-                                        targetOffsetX = { -(it * 0.1).toInt() }
-                                    ) + scaleOut(
-                                        targetScale = 0.92f,
-                                        transformOrigin = TransformOrigin(0.5f, 0.5f)
-                                    ) + fadeOut(
-                                        targetAlpha = 0.7f
-                                    )
-                                }
+                                )
                             ) {
                                 ChatsListScreen(
                                     onChatClick = { chatId, messageId, lastReadInboxMessageId ->
@@ -217,7 +184,9 @@ fun MategramNavigation(
                                         )
                                     },
                                     onBackHandled = {
-                                        backStack.removeLastOrNull()
+                                        if (backStack.size > 1) {
+                                            backStack.removeLastOrNull()
+                                        }
                                     },
                                     onLinkClicked = { chatId, messageId ->
                                         backStack.add(RouteChatDetail(chatId, messageId))
@@ -237,7 +206,11 @@ fun MategramNavigation(
                                 MediaViewerScreen(
                                     messageId = media.messageId,
                                     chatId = media.chatId,
-                                    onBack = { backStack.removeLastOrNull() }
+                                    onBack = {
+                                        if (backStack.size > 1) {
+                                            backStack.removeLastOrNull()
+                                        }
+                                    }
                                 )
                             }
 
@@ -250,7 +223,11 @@ fun MategramNavigation(
                                 )
                                 CameraScreen(
                                     mode = it.mode,
-                                    onBackHandled = { backStack.removeLastOrNull() },
+                                    onBackHandled = {
+                                        if (backStack.size > 1) {
+                                            backStack.removeLastOrNull()
+                                        }
+                                    },
                                     chatId = it.chatId,
                                     onMediaCaptured = { uris ->
                                         viewModel.onEvent(InputEvent.MediaSelected(uris))
@@ -262,7 +239,11 @@ fun MategramNavigation(
                                 ProfileScreen(
                                     id = profile.id,
                                     type = profile.type,
-                                    onBackHandled = { backStack.removeLastOrNull() }
+                                    onBackHandled = {
+                                        if (backStack.size > 1) {
+                                            backStack.removeLastOrNull()
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -275,7 +256,7 @@ fun MategramNavigation(
                         DraggableAreaForFloatingPlayer(
                             viewModel = playerViewModel,
                             onWidgetClick = { chatId, messageId ->
-                                if (backStack.last() is RouteChatDetail) {
+                                if (backStack.last() is RouteChatDetail && backStack.size > 1) {
                                     backStack.removeLastOrNull()
                                 }
                                 backStack.add(RouteChatDetail(chatId, messageId))

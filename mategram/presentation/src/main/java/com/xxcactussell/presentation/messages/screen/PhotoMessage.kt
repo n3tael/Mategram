@@ -1,6 +1,7 @@
 package com.xxcactussell.presentation.messages.screen
 
 import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.fadeIn
@@ -9,7 +10,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
@@ -32,12 +35,14 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import com.xxcactussell.domain.Photo
 import com.xxcactussell.domain.Video
 import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.LocalRootViewModel
 import com.xxcactussell.presentation.LocalSharedTransitionScope
+import com.xxcactussell.presentation.tools.messageContentAspectRatio
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -48,7 +53,6 @@ fun PhotoMessage(
     messageId: Long,
     photo: Photo,
     isSending: Boolean,
-    uploadProgress: () -> Float,
     isFailed: Boolean,
     onMediaClicked: (Long) -> Unit
 ) {
@@ -88,7 +92,8 @@ fun PhotoMessage(
                             enter = fadeIn(),
                             exit = fadeOut(),
                             resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds()
-                        ).then(modifier),
+                        )
+                        .then(modifier),
                     contentAlignment = Alignment.Center,
                 ) {
                     Image(
@@ -104,7 +109,9 @@ fun PhotoMessage(
                     if (isSending) {
                         CircularWavyProgressIndicator(
                             color = MaterialTheme.colorScheme.onPrimary,
-                            progress = { uploadProgress() }
+                            progress = {
+                                photoSize.remote.uploadedSize / photoSize.expectedSize.toFloat()
+                            }
                         )
                         IconButton(
                             onClick = { /*TODO*/ },
@@ -153,13 +160,12 @@ fun PhotoMessage(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
-fun MessageVideoNoteContent(
+fun MessageVideoContent(
     modifier: Modifier = Modifier,
     messageId: Long,
     video: Video,
     videoCover: Photo?,
     isSending: Boolean,
-    uploadProgress: () -> Float,
     isFailed: Boolean,
     onMediaClicked: (Long) -> Unit
 ) {
@@ -180,11 +186,24 @@ fun MessageVideoNoteContent(
 
         LaunchedEffect(file.local.path) {
             withContext(Dispatchers.IO) {
+                val path = file.local.path
+                val retriever = MediaMetadataRetriever()
+
                 try {
-                    val decodedBitmap = BitmapFactory.decodeFile(file.local.path)
+                    retriever.setDataSource(path)
+                    val hasVideo = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO)
+
+                    val decodedBitmap = if (hasVideo == "yes") {
+                        retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    } else {
+                        BitmapFactory.decodeFile(path)
+                    }
+
                     bitmap = decodedBitmap?.asImageBitmap()
                 } catch (e: Exception) {
-                    // Handle exceptions
+                    bitmap = BitmapFactory.decodeFile(path)?.asImageBitmap()
+                } finally {
+                    try { retriever.release() } catch (e: Exception) {}
                 }
             }
         }
@@ -203,7 +222,8 @@ fun MessageVideoNoteContent(
                             enter = fadeIn(),
                             exit = fadeOut(),
                             resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds()
-                        ).then(modifier),
+                        )
+                        .then(modifier),
                     contentAlignment = Alignment.Center,
                 ) {
                     Image(
@@ -216,7 +236,9 @@ fun MessageVideoNoteContent(
                     if (isSending) {
                         CircularWavyProgressIndicator(
                             color = MaterialTheme.colorScheme.onPrimary,
-                            progress = { uploadProgress() }
+                            progress = {
+                                video.video.remote.uploadedSize / video.video.expectedSize.toFloat()
+                            }
                         )
                         IconButton(
                             onClick = { /*TODO*/ },

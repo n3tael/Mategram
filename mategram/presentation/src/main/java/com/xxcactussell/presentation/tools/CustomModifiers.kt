@@ -3,6 +3,8 @@ package com.xxcactussell.presentation.tools
 import android.os.Build
 import android.view.RoundedCorner
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -44,4 +46,16 @@ fun rememberDeviceCornerRadius(defaultRadius: Dp = 16.dp): Dp {
         val radiusPx = corner?.radius ?: return@remember defaultRadius
         with(density) { radiusPx.toDp() }
     }
+}
+
+@Composable
+fun Modifier.messageContentAspectRatio(w: Float?, h: Float?) : Modifier {
+    val aspectRatio = when(val ar = (w ?: 1f) / (h ?: 1f)) {
+        in 0f..(2f / 3f) -> 2f / 3f
+        in (2f / 3f)..(3f / 2f) -> ar
+        else -> 3f / 2f
+    }
+    return this
+        .sizeIn(maxWidth = 260.dp, maxHeight = 260.dp)
+        .aspectRatio(aspectRatio)
 }

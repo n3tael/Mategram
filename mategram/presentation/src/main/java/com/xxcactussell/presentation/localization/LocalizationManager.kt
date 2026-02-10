@@ -48,12 +48,9 @@ class LocalizationManager @Inject constructor(
     }
 
     fun initialize(context: Context, scope: CoroutineScope) {
-        Log.d("LANGINIT", "INIT")
         scope.launch(Dispatchers.IO) {
             val languageId = getLanguageIdUseCase(context)
-            Log.d("LANGINIT", languageId)
             _translationMap.value = getLanguageStringsUseCase(languageId).first().associate { it.key to it.value }
-            Log.d("LANGINIT",  "${_translationMap.value}")
             synchronizeLanguageStringsUseCase(languageId)
         }
     }

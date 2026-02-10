@@ -40,6 +40,7 @@ import com.xxcactussell.presentation.messages.model.MessageUiItem
 import com.xxcactussell.presentation.tools.ColumnWidthOf
 import com.xxcactussell.presentation.tools.FormattedTextView
 import com.xxcactussell.presentation.tools.Sticker
+import com.xxcactussell.presentation.tools.messageContentAspectRatio
 
 @Composable
 fun MessageContent(message: MessageUiItem.MessageItem, playerState: PlayerState, onMediaClicked: (Long) -> Unit, onEvent: (Any) -> Unit) {
@@ -59,7 +60,7 @@ fun MessageContent(message: MessageUiItem.MessageItem, playerState: PlayerState,
     when (val content = message.message.content) {
         is MessageText -> MessageTextContent(content, messageTextColor)
         is MessagePhoto -> MessagePhotoContent(message, messageTextColor, isSending, isFailed, onMediaClicked)
-        is MessageVideo -> MessageVideoContent(message, messageTextColor, isSending, isFailed, onMediaClicked)
+        is MessageVideo -> MessageVideo(message, messageTextColor, isSending, isFailed, onMediaClicked)
         is MessageSticker -> MessageStickerContent(content.sticker, 172.dp)
         is MessageAnimatedEmoji -> MessageStickerContent(content.animatedEmoji.sticker, 92.dp)
         is MessageDocument -> DocumentMessage(message, messageTextColor, isSending, isFailed, onEvent)
@@ -89,7 +90,7 @@ fun MessageStickerContent(sticker: Sticker?, size: Dp) {
         val path = file.local.path
 
         if (file.local.isDownloadingCompleted && path.isNotEmpty()) {
-            Sticker(path, size)
+            Sticker(Modifier, path, size)
         } else {
             Box(
                 modifier = Modifier
@@ -107,7 +108,7 @@ fun MessageStickerContent(sticker: Sticker?, size: Dp) {
 }
 
 @Composable
-fun MessageVideoContent(
+fun MessageVideo(
     message: MessageUiItem.MessageItem,
     textColor: Color,
     isSending: Boolean,
@@ -131,34 +132,20 @@ fun MessageVideoContent(
             Caption(content.caption, textColor)
         }
 
-        val imageHeight = content.video.thumbnail?.height ?: 0
-        val imageWidth = content.video.thumbnail?.width ?: 0
-        val aspectRatio = if (imageHeight != 0 && imageWidth != 0) imageWidth.toFloat() / imageHeight.toFloat() else 1F
+        val imageHeight = content.video.thumbnail?.height
+        val imageWidth = content.video.thumbnail?.width
 
-        MessageVideoNoteContent(
+        MessageVideoContent(
             modifier = Modifier
                 .layoutId("photo")
-                .then(
-                    if (imageHeight < imageWidth) {
-                        Modifier
-                            .width(320.dp)
-                            .aspectRatio(aspectRatio)
-                            .heightIn(min = 80.dp, max = 320.dp)
-                    } else {
-                        Modifier
-                            .height(320.dp)
-                            .aspectRatio(aspectRatio)
-                            .widthIn(min = 80.dp, max = 320.dp)
-                    }
-                )
+                .messageContentAspectRatio(imageWidth?.toFloat(), imageHeight?.toFloat())
                 .clip(RoundedCornerShape(14.dp)),
             messageId = message.message.id,
             video = content.video,
             isSending = isSending,
             isFailed = isFailed,
             videoCover = content.cover,
-            onMediaClicked = onMediaClicked,
-            uploadProgress = { 0.0F } //TODO
+            onMediaClicked = onMediaClicked
         )
         if (!content.showCaptionAboveMedia) {
             Caption(content.caption, textColor)
@@ -176,6 +163,9 @@ fun MessagePhotoContent(
 ) {
     val content = message.message.content as MessagePhoto
 
+    val w = content.photo.sizes.maxByOrNull { it.width }?.width?.toFloat()
+    val h = content.photo.sizes.maxByOrNull { it.width }?.height?.toFloat()
+
     ColumnWidthOf(
         modifier =
             if(content.caption.text.isEmpty())
@@ -190,34 +180,16 @@ fun MessagePhotoContent(
         if (content.showCaptionAboveMedia) {
             Caption(content.caption, textColor)
         }
-
-        val imageHeight = content.photo.sizes.maxByOrNull { it.width }?.height ?: 0
-        val imageWidth = content.photo.sizes.maxByOrNull { it.width }?.width ?: 0
-        val aspectRatio = if (imageHeight != 0 && imageWidth != 0) imageWidth.toFloat() / imageHeight.toFloat() else 1F
-
         PhotoMessage(
             modifier = Modifier
                 .layoutId("photo")
-                .then(
-                    if (imageHeight < imageWidth) {
-                        Modifier
-                            .width(320.dp)
-                            .aspectRatio(aspectRatio)
-                            .heightIn(min = 80.dp, max = 320.dp)
-                    } else {
-                        Modifier
-                            .height(320.dp)
-                            .aspectRatio(aspectRatio)
-                            .widthIn(min = 80.dp, max = 320.dp)
-                    }
-                )
+                .messageContentAspectRatio(w, h)
                 .clip(RoundedCornerShape(14.dp)),
             messageId = message.message.id,
             photo = content.photo,
             isSending = isSending,
             isFailed = isFailed,
-            onMediaClicked = onMediaClicked,
-            uploadProgress = { 0.0F } //TODO
+            onMediaClicked = onMediaClicked
         )
         if (!content.showCaptionAboveMedia) {
             Caption(content.caption, textColor)

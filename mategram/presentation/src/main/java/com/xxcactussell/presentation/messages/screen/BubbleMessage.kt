@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -38,6 +39,7 @@ import com.xxcactussell.presentation.messages.model.MessageUiItem
 import com.xxcactussell.presentation.messages.model.MessagesEvent
 import com.xxcactussell.presentation.messages.model.getAvatar
 import com.xxcactussell.presentation.messages.model.getChatId
+import com.xxcactussell.presentation.messages.model.getEditTime
 import com.xxcactussell.presentation.messages.model.getMessage
 import com.xxcactussell.presentation.messages.model.getMessageId
 import com.xxcactussell.presentation.messages.model.getReactions
@@ -64,7 +66,7 @@ fun BubbleMessage(
     onLinkClicked: (Long, Long?) -> Unit,
     content: @Composable (() -> Unit)
 ) {
-    val alignment = if (isOutgoing) Alignment.Companion.CenterEnd else Alignment.Companion.CenterStart
+    val alignment = if (isOutgoing) Alignment.CenterEnd else Alignment.CenterStart
     val haptic = LocalHapticFeedback.current
 
     val forwardInfo : ForwardFullInfo? = when (message) {
@@ -161,7 +163,7 @@ fun BubbleMessage(
             )
     ) {
         Column(
-            modifier = Modifier.Companion.align(alignment),
+            modifier = Modifier.align(alignment),
             horizontalAlignment = if (isOutgoing) Alignment.End else Alignment.Start
         ) {
             if (needSenderName) {
@@ -266,10 +268,44 @@ fun BubbleMessage(
             AnimatedVisibility(
                 isDateShown
             ) {
-                Text(
-                    text = formatTimestampToDateTime(message.getMessage()?.date ?: 0),
-                    style = MaterialTheme.typography.bodySmallEmphasized
-                )
+                Row(
+                    modifier = Modifier.padding(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(painterResource(R.drawable.send_24px), "sent", Modifier.size(16.dp))
+                        Text(
+                            text = formatTimestampToDateTime(message.getMessage()?.date ?: 0),
+                            style = MaterialTheme.typography.bodySmallEmphasized
+                        )
+                    }
+                    message.getEditTime()?.let {
+                        if (it > 0) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "(",
+                                    style = MaterialTheme.typography.bodySmallEmphasized
+                                )
+                                Icon(
+                                    painterResource(R.drawable.edit_note_24px),
+                                    "edited",
+                                    Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "${formatTimestampToDateTime(it)})",
+                                    style = MaterialTheme.typography.bodySmallEmphasized
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }

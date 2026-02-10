@@ -118,7 +118,6 @@ fun MessageAlbum(messages: List<MessageUiItem.MessageItem>, onMediaClicked: (Lon
                                     messageId = messages[id].message.id,
                                     photo = content.photo,
                                     isSending = isSending,
-                                    uploadProgress = { 0.0F },
                                     onMediaClicked = onMediaClicked,
                                     isFailed = isFailed,
                                     // TODO
@@ -126,7 +125,7 @@ fun MessageAlbum(messages: List<MessageUiItem.MessageItem>, onMediaClicked: (Lon
                             }
 
                             is MessageVideo -> {
-                                MessageVideoNoteContent(
+                                MessageVideoContent(
                                     modifier = Modifier
                                         .height(320.dp)
                                         .width(256.dp)
@@ -135,7 +134,6 @@ fun MessageAlbum(messages: List<MessageUiItem.MessageItem>, onMediaClicked: (Lon
                                     video = content.video,
                                     videoCover = content.cover,
                                     isSending = isSending,
-                                    uploadProgress = { 0.0F },
                                     onMediaClicked = onMediaClicked,
                                     isFailed = isFailed,
                                     // TODO

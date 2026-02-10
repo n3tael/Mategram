@@ -4,6 +4,7 @@ import com.xxcactussell.customdomain.ForwardFullInfo
 import com.xxcactussell.customdomain.ForwardInfoLink
 import com.xxcactussell.data.TdClientManager
 import com.xxcactussell.data.utils.ChatHistoryProcessor
+import com.xxcactussell.data.utils.mappers.bots.toDomain
 import com.xxcactussell.data.utils.mappers.chat.toDomain
 import com.xxcactussell.data.utils.mappers.input.toData
 import com.xxcactussell.data.utils.mappers.message.toData
@@ -14,7 +15,6 @@ import com.xxcactussell.domain.Chat
 import com.xxcactussell.domain.ChatAction
 import com.xxcactussell.domain.InputMessageContent
 import com.xxcactussell.domain.Message
-import com.xxcactussell.domain.MessageOrigin
 import com.xxcactussell.domain.MessageOriginChannel
 import com.xxcactussell.domain.MessageOriginChat
 import com.xxcactussell.domain.MessageOriginHiddenUser
@@ -35,13 +35,17 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
 import java.util.concurrent.ConcurrentHashMap
@@ -54,9 +58,7 @@ import kotlin.coroutines.resumeWithException
 class MessagesRepositoryImpl @Inject constructor(
     private val clientManager: TdClientManager
 ) : MessagesRepository {
-
     private val chatProcessors = ConcurrentHashMap<Long, ChatHistoryProcessor>()
-    private val processorsLock = Any()
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val _succeededMessages = MutableSharedFlow<Pair<Long, Message>>(
@@ -71,50 +73,71 @@ class MessagesRepositoryImpl @Inject constructor(
 
     init {
         clientManager.newMessagesFlow
+            .buffer(Channel.UNLIMITED)
             .onEach { updateNewMessage ->
-                when (updateNewMessage) {
-                    is TdApi.UpdateNewMessage -> {
-                        var domainMsg = updateNewMessage.message.toDomain()
-                        getProcessor(domainMsg.chatId).processNewMessage(domainMsg)
-                    }
-                    is TdApi.UpdateMessageSendSucceeded -> {
-                        val domainMsg = updateNewMessage.message.toDomain()
-                        getProcessor(domainMsg.chatId).processUpdatedMessage(updateNewMessage.oldMessageId, domainMsg)
-                    }
-                    is TdApi.UpdateMessageSendFailed -> {
-                        val domainMsg = updateNewMessage.message.toDomain()
-                        getProcessor(domainMsg.chatId).processUpdatedMessage(updateNewMessage.oldMessageId, domainMsg)
-                    }
-                    is TdApi.UpdateMessageInteractionInfo -> {
-                        getProcessor(updateNewMessage.chatId).processUpdateInteractionInfo(updateNewMessage.messageId,
-                            updateNewMessage.interactionInfo?.toDomain()
-                        )
-                    }
-                    is TdApi.UpdateDeleteMessages -> {
-                        getProcessor(updateNewMessage.chatId).processDeleteMessages(updateNewMessage.messageIds)
-                    }
-                    is TdApi.UpdateChatAction -> {
-                        getProcessor(updateNewMessage.chatId).processChatAction(updateNewMessage.action.toDomain())
+                withContext(Dispatchers.Default) {
+                    when (updateNewMessage) {
+                        is TdApi.UpdateMessageContent -> {
+                            val domainContent = updateNewMessage.newContent.toDomain()
+                            getProcessor(updateNewMessage.chatId).processUpdateContent(
+                                updateNewMessage.messageId,
+                                domainContent
+                            )
+                        }
+                        is TdApi.UpdateMessageEdited -> {
+                            getProcessor(updateNewMessage.chatId).processEditMessage(
+                                updateNewMessage.messageId,
+                                updateNewMessage.editDate,
+                                updateNewMessage.replyMarkup?.toDomain()
+                            )
+                        }
+                        is TdApi.UpdateNewMessage -> {
+                            val domainMsg = updateNewMessage.message.toDomain()
+                            getProcessor(domainMsg.chatId).processNewMessage(domainMsg)
+                        }
+                        is TdApi.UpdateMessageSendSucceeded -> {
+                            val domainMsg = updateNewMessage.message.toDomain()
+                            getProcessor(domainMsg.chatId).processUpdatedMessage(
+                                updateNewMessage.oldMessageId,
+                                domainMsg
+                            )
+                        }
+                        is TdApi.UpdateMessageSendFailed -> {
+                            val domainMsg = updateNewMessage.message.toDomain()
+                            getProcessor(domainMsg.chatId).processUpdatedMessage(
+                                updateNewMessage.oldMessageId,
+                                domainMsg
+                            )
+                        }
+                        is TdApi.UpdateMessageInteractionInfo -> {
+                            getProcessor(updateNewMessage.chatId).processUpdateInteractionInfo(
+                                updateNewMessage.messageId,
+                                updateNewMessage.interactionInfo?.toDomain()
+                            )
+                        }
+                        is TdApi.UpdateDeleteMessages -> {
+                            getProcessor(updateNewMessage.chatId).processDeleteMessages(updateNewMessage.messageIds)
+                        }
+                        is TdApi.UpdateChatAction -> {
+                            getProcessor(updateNewMessage.chatId).processChatAction(updateNewMessage.action.toDomain())
+                        }
                     }
                 }
             }.launchIn(repositoryScope)
 
         clientManager.chatsUpdatesFlow
+            .buffer(Channel.UNLIMITED)
             .onEach { update ->
-                when(update) {
-                    is TdApi.UpdateChatReadOutbox -> {
-                        _lastReadOutboxIdFlow.tryEmit(update.chatId to update.lastReadOutboxMessageId)
-                    }
+                if (update is TdApi.UpdateChatReadOutbox) {
+                    _lastReadOutboxIdFlow.tryEmit(update.chatId to update.lastReadOutboxMessageId)
                 }
             }
             .launchIn(repositoryScope)
     }
 
     fun getProcessor(chatId: Long): ChatHistoryProcessor {
-        return chatProcessors[chatId] ?: synchronized(processorsLock) {
-            chatProcessors.getOrPut(chatId) {
-                ChatHistoryProcessor(chatId, clientManager, this, repositoryScope)
-            }
+        return chatProcessors.computeIfAbsent(chatId) {
+            ChatHistoryProcessor(chatId, clientManager, this, repositoryScope)
         }
     }
 
@@ -127,7 +150,11 @@ class MessagesRepositoryImpl @Inject constructor(
     }
 
     override fun loadMoreHistory(chatId: Long, messageId: Long?) {
-        if (messageId == null) { getProcessor(chatId).loadMoreHistory() } else { getProcessor(chatId).loadHistoryAround(messageId) }
+        if (messageId == null) {
+            getProcessor(chatId).loadMoreHistory()
+        } else {
+            getProcessor(chatId).loadHistoryAround(messageId)
+        }
     }
 
     override fun loadMoreNewer(chatId: Long) {
@@ -143,7 +170,15 @@ class MessagesRepositoryImpl @Inject constructor(
         messageId: Long,
         reactionType: ReactionType,
     ) {
-        clientManager.send(TdApi.AddMessageReaction(chatId, messageId, reactionType.toData(), false, false), null)
+        clientManager.send(
+            TdApi.AddMessageReaction(
+                chatId,
+                messageId,
+                reactionType.toData(),
+                false,
+                false
+            ), null
+        )
     }
 
     override fun removeReactionFromMessage(
@@ -151,11 +186,17 @@ class MessagesRepositoryImpl @Inject constructor(
         messageId: Long,
         reactionType: ReactionType,
     ) {
-        clientManager.send(TdApi.RemoveMessageReaction(chatId, messageId, reactionType.toData()), null)
+        clientManager.send(
+            TdApi.RemoveMessageReaction(
+                chatId,
+                messageId,
+                reactionType.toData()
+            ), null
+        )
     }
 
     suspend fun resolveSenders(senderIds: Set<MessageSender>): Map<Long, Any> {
-        return coroutineScope {
+        return withContext(Dispatchers.Default) {
             val deferredSenders = senderIds.associateWith { senderId ->
                 async {
                     when (senderId) {
@@ -173,17 +214,21 @@ class MessagesRepositoryImpl @Inject constructor(
                     resultMap[senderId.getId() ?: 0L] = chat
                 }
             }
-
-            return@coroutineScope resultMap.toMap()
+            resultMap
         }
     }
 
-    suspend fun getMessagesWithAlbumBoundary(chatId: Long, fromMessageId: Long, limit: Int): List<Message> {
-        var messages = getChatHistory(chatId, fromMessageId,  0, limit)
+    suspend fun getMessagesWithAlbumBoundary(
+        chatId: Long,
+        fromMessageId: Long,
+        limit: Int
+    ): List<Message> {
+        var messages = getChatHistory(chatId, fromMessageId, 0, limit)
         if (messages.isNotEmpty()) {
             val oldestMessage = messages.last()
             if (oldestMessage.mediaAlbumId != 0L) {
-                val lastAlbumIndex = messages.indexOfFirst { it.mediaAlbumId == oldestMessage.mediaAlbumId }
+                val lastAlbumIndex =
+                    messages.indexOfFirst { it.mediaAlbumId == oldestMessage.mediaAlbumId }
                 if (lastAlbumIndex > 0) {
                     messages = messages.subList(0, lastAlbumIndex)
                 }
@@ -192,34 +237,53 @@ class MessagesRepositoryImpl @Inject constructor(
         return messages
     }
 
-    override suspend fun getChatHistory(chatId: Long, fromMessageId: Long, offset: Int, limit: Int): List<Message> {
-        val initialMessages = suspendCancellableCoroutine { continuation ->
-            clientManager.send(TdApi.GetChatHistory(chatId, fromMessageId, offset, limit, false)) { result ->
-                if (continuation.isActive) {
-                    when (result) {
-                        is TdApi.Messages -> {
-                            val messages = result.messages.map { it.toDomain() }
-                            continuation.resume(messages)
+    override suspend fun getChatHistory(
+        chatId: Long,
+        fromMessageId: Long,
+        offset: Int,
+        limit: Int
+    ): List<Message> {
+        return withContext(Dispatchers.Default) {
+            val initialMessages = suspendCancellableCoroutine { continuation ->
+                clientManager.send(
+                    TdApi.GetChatHistory(
+                        chatId,
+                        fromMessageId,
+                        offset,
+                        limit,
+                        false
+                    )
+                ) { result ->
+                    if (continuation.isActive) {
+                        when (result) {
+                            is TdApi.Messages -> {
+                                val messages = result.messages.map { it.toDomain() }
+                                continuation.resume(messages)
+                            }
+                            else -> continuation.resume(emptyList())
                         }
-                        else -> continuation.resume(emptyList())
                     }
                 }
             }
-        }
-        return coroutineScope {
+
             initialMessages.map { message ->
                 async {
-                    var newMessage = if (message.replyTo != null && message.replyTo is MessageReplyToMessage) {
-                        val replyChatId = (message.replyTo as MessageReplyToMessage).chatId
-                        val replyMessageId = (message.replyTo as MessageReplyToMessage).messageId
-                        val loadedReply = getReplyMessage(replyChatId, replyMessageId)
-                        message.copy(replyTo = (message.replyTo as MessageReplyToMessage).copy(message = loadedReply))
-                    } else {
-                        message
-                    }
+                    var newMessage =
+                        if (message.replyTo != null && message.replyTo is MessageReplyToMessage) {
+                            val replyChatId = (message.replyTo as MessageReplyToMessage).chatId
+                            val replyMessageId = (message.replyTo as MessageReplyToMessage).messageId
+                            val loadedReply = getReplyMessage(replyChatId, replyMessageId)
+                            message.copy(
+                                replyTo = (message.replyTo as MessageReplyToMessage).copy(
+                                    message = loadedReply
+                                )
+                            )
+                        } else {
+                            message
+                        }
 
                     newMessage = if (message.forwardInfo != null) {
-                        when(val origin = message.forwardInfo!!.origin) {
+                        when (val origin = message.forwardInfo!!.origin) {
                             is MessageOriginUser -> {
                                 val originChat = getUser(origin.senderUserId)
                                 newMessage.copy(
@@ -259,7 +323,11 @@ class MessagesRepositoryImpl @Inject constructor(
                                     )
                                 )
                             }
-                            is MessageOriginHiddenUser -> newMessage.copy(forwardFullInfo = ForwardFullInfo(isHidden = true))
+                            is MessageOriginHiddenUser -> newMessage.copy(
+                                forwardFullInfo = ForwardFullInfo(
+                                    isHidden = true
+                                )
+                            )
                         }
                     } else {
                         newMessage
@@ -271,9 +339,11 @@ class MessagesRepositoryImpl @Inject constructor(
         }
     }
 
-    override fun observeSucceededMessages() : Flow<Pair<Long, Message>> = _succeededMessages.asSharedFlow()
+    override fun observeSucceededMessages(): Flow<Pair<Long, Message>> =
+        _succeededMessages.asSharedFlow()
 
-    override fun observeLastReadOutboxMessage(): Flow<Pair<Long, Long>> = _lastReadOutboxIdFlow.asSharedFlow()
+    override fun observeLastReadOutboxMessage(): Flow<Pair<Long, Long>> =
+        _lastReadOutboxIdFlow.asSharedFlow()
 
     override suspend fun openChat(chatId: Long): Chat? = suspendCancellableCoroutine { continuation ->
         clientManager.send(TdApi.GetChat(chatId)) { result ->
@@ -282,53 +352,47 @@ class MessagesRepositoryImpl @Inject constructor(
             when (result.constructor) {
                 TdApi.Chat.CONSTRUCTOR -> {
                     val tdChat = result as TdApi.Chat
-                    var mgChat = tdChat.toDomain()
-                    val type = tdChat.type
-                    when (type) {
-                        is TdApi.ChatTypeBasicGroup -> {
-                            clientManager.send(TdApi.GetBasicGroup(type.basicGroupId)) { groupResult ->
-                                if (groupResult.constructor == TdApi.BasicGroup.CONSTRUCTOR) {
-                                    val bg = groupResult as TdApi.BasicGroup
-                                    mgChat = mgChat.copy(
-                                        myMemberStatus = bg.status.toDomain(),
-                                        memberCount = bg.memberCount
-                                    )
+                    CoroutineScope(Dispatchers.Default).launch {
+                        var mgChat = tdChat.toDomain()
+                        val type = tdChat.type
+                        when (type) {
+                            is TdApi.ChatTypeBasicGroup -> {
+                                clientManager.send(TdApi.GetBasicGroup(type.basicGroupId)) { groupResult ->
+                                    if (groupResult.constructor == TdApi.BasicGroup.CONSTRUCTOR) {
+                                        val bg = groupResult as TdApi.BasicGroup
+                                        mgChat = mgChat.copy(
+                                            myMemberStatus = bg.status.toDomain(),
+                                            memberCount = bg.memberCount
+                                        )
+                                    }
+                                    clientManager.send(TdApi.OpenChat(chatId), null)
+                                    if (continuation.isActive) continuation.resume(mgChat)
                                 }
+                            }
+                            is TdApi.ChatTypeSupergroup -> {
+                                clientManager.send(TdApi.GetSupergroup(type.supergroupId)) { superResult ->
+                                    if (superResult.constructor == TdApi.Supergroup.CONSTRUCTOR) {
+                                        val sg = superResult as TdApi.Supergroup
+                                        mgChat = mgChat.copy(
+                                            myMemberStatus = sg.status.toDomain(),
+                                            memberCount = sg.memberCount
+                                        )
+                                    }
+                                    clientManager.send(TdApi.OpenChat(chatId), null)
+                                    if (continuation.isActive) continuation.resume(mgChat)
+                                }
+                            }
+                            else -> {
                                 clientManager.send(TdApi.OpenChat(chatId), null)
-
                                 if (continuation.isActive) continuation.resume(mgChat)
                             }
-                        }
-
-                        is TdApi.ChatTypeSupergroup -> {
-                            clientManager.send(TdApi.GetSupergroup(type.supergroupId)) { superResult ->
-                                if (superResult.constructor == TdApi.Supergroup.CONSTRUCTOR) {
-                                    val sg = superResult as TdApi.Supergroup
-                                    mgChat = mgChat.copy(
-                                        myMemberStatus = sg.status.toDomain(),
-                                        memberCount = sg.memberCount
-                                    )
-                                }
-                                clientManager.send(TdApi.OpenChat(chatId), null)
-                                if (continuation.isActive) continuation.resume(mgChat)
-                            }
-                        }
-
-                        else -> {
-                            clientManager.send(TdApi.OpenChat(chatId), null)
-                            if (continuation.isActive) continuation.resume(mgChat)
                         }
                     }
                 }
-
                 else -> {
                     if (continuation.isActive) continuation.resume(null)
                 }
             }
-        }
-
-        continuation.invokeOnCancellation {
-
         }
     }
 
@@ -341,86 +405,49 @@ class MessagesRepositoryImpl @Inject constructor(
             if (continuation.isActive) {
                 when (result.constructor) {
                     TdApi.Chat.CONSTRUCTOR -> {
-                        val tdChat = result as TdApi.Chat
-                        continuation.resume(tdChat.toDomain())
+                        CoroutineScope(Dispatchers.Default).launch {
+                            val tdChat = result as TdApi.Chat
+                            continuation.resume(tdChat.toDomain())
+                        }
                     }
-                    TdApi.Error.CONSTRUCTOR -> {
-                        continuation.resume(null)
-                    }
-
-                    else -> {
-                        continuation.resume(null)
-                    }
+                    else -> continuation.resume(null)
                 }
             }
         }
-
-        continuation.invokeOnCancellation {
-            // TODO
-        }
     }
-
 
     override suspend fun getUser(userId: Long): User? = suspendCancellableCoroutine { continuation ->
         clientManager.send(TdApi.GetUser(userId)) { result ->
             if (continuation.isActive) {
                 when (result.constructor) {
                     TdApi.User.CONSTRUCTOR -> {
-                        val tdUser = result as TdApi.User
-                        continuation.resume(tdUser.toDomain())
+                        CoroutineScope(Dispatchers.Default).launch {
+                            val tdUser = result as TdApi.User
+                            continuation.resume(tdUser.toDomain())
+                        }
                     }
-                    TdApi.Error.CONSTRUCTOR -> {
-                        continuation.resume(null)
-                    }
-
-                    else -> {
-                        continuation.resume(null)
-                    }
+                    else -> continuation.resume(null)
                 }
             }
         }
-
-        continuation.invokeOnCancellation {
-            // TODO
-        }
     }
-
 
     override suspend fun sendMessage(
         chatId: Long,
         inputMessageContents: List<InputMessageContent>,
         replyToMessageId: Long,
         messageThreadId: Long
-    ): List<Message>  = suspendCancellableCoroutine { continuation ->
+    ): List<Message> = suspendCancellableCoroutine { continuation ->
         if (inputMessageContents.isEmpty()) {
             continuation.resumeWithException(IllegalArgumentException("Input message contents cannot be empty"))
             return@suspendCancellableCoroutine
         }
 
-        val replyTo = if (replyToMessageId != 0L) TdApi.InputMessageReplyToMessage(replyToMessageId, null, 0) else null
-
-        val handler = Client.ResultHandler { result ->
-            if (continuation.isActive) {
-                when (result) {
-                    is TdApi.Message -> {
-                        val message = result.toDomain()
-                        continuation.resume(listOf(message))
-                    }
-                    is TdApi.Messages -> {
-                        if (result.messages.isNotEmpty()) {
-                            val messages = result.messages.map {
-                                it.toDomain()
-                            }.toList()
-                            continuation.resume(messages)
-                        } else {
-                            continuation.resumeWithException(Exception("TDLib returned empty Messages object for album"))
-                        }
-                    }
-                    is TdApi.Error -> continuation.resumeWithException(Exception("TDLib error: ${result.code} ${result.message}"))
-                    else -> continuation.resumeWithException(Exception("Unexpected result from sendMessage: $result"))
-                }
-            }
-        }
+        val replyTo = if (replyToMessageId != 0L) TdApi.InputMessageReplyToMessage(
+            replyToMessageId,
+            null,
+            0
+        ) else null
 
         if (inputMessageContents.size == 1) {
             clientManager.send(
@@ -431,8 +458,21 @@ class MessagesRepositoryImpl @Inject constructor(
                     null,
                     null,
                     inputMessageContents.first().toData()
-                ), handler
-            )
+                )
+            ) { result ->
+                if (continuation.isActive) {
+                    when (result) {
+                        is TdApi.Message -> {
+                            CoroutineScope(Dispatchers.Default).launch {
+                                val message = result.toDomain()
+                                continuation.resume(listOf(message))
+                            }
+                        }
+                        is TdApi.Error -> continuation.resumeWithException(Exception("TDLib error: ${result.code} ${result.message}"))
+                        else -> continuation.resumeWithException(Exception("Unexpected result from sendMessage: $result"))
+                    }
+                }
+            }
         } else {
             clientManager.send(
                 TdApi.SendMessageAlbum(
@@ -440,11 +480,26 @@ class MessagesRepositoryImpl @Inject constructor(
                     messageThreadId,
                     replyTo,
                     null,
-                    inputMessageContents.map {
-                        it.toData()
-                    }.toTypedArray()
-                ), handler
-            )
+                    inputMessageContents.map { it.toData() }.toTypedArray()
+                )
+            ) { result ->
+                if (continuation.isActive) {
+                    when (result) {
+                        is TdApi.Messages -> {
+                            if (result.messages.isNotEmpty()) {
+                                CoroutineScope(Dispatchers.Default).launch {
+                                    val messages = result.messages.map { it.toDomain() }
+                                    continuation.resume(messages)
+                                }
+                            } else {
+                                continuation.resumeWithException(Exception("TDLib returned empty Messages object for album"))
+                            }
+                        }
+                        is TdApi.Error -> continuation.resumeWithException(Exception("TDLib error: ${result.code} ${result.message}"))
+                        else -> continuation.resumeWithException(Exception("Unexpected result from sendMessageAlbum: $result"))
+                    }
+                }
+            }
         }
     }
 
@@ -454,7 +509,14 @@ class MessagesRepositoryImpl @Inject constructor(
         source: MessageSource,
         forceRead: Boolean
     ) {
-        clientManager.send(TdApi.ViewMessages(chatId, longArrayOf(messageId), source.toData(), forceRead), null)
+        clientManager.send(
+            TdApi.ViewMessages(
+                chatId,
+                longArrayOf(messageId),
+                source.toData(),
+                forceRead
+            ), null
+        )
     }
 
     override suspend fun searchMediaMessages(
@@ -463,46 +525,47 @@ class MessagesRepositoryImpl @Inject constructor(
         offset: Int,
         limit: Int,
     ): List<Message> = suspendCancellableCoroutine { continuation ->
-        val handler = Client.ResultHandler { result ->
+        clientManager.send(
+            TdApi.SearchChatMessages(
+                chatId,
+                null,
+                "",
+                null,
+                fromMessageId,
+                offset,
+                limit,
+                TdApi.SearchMessagesFilterPhotoAndVideo()
+            )
+        ) { result ->
             if (continuation.isActive) {
                 when (result) {
                     is TdApi.FoundChatMessages -> {
-                        val messages = result.messages.map { it.toDomain() }
-                        continuation.resume(messages)
+                        CoroutineScope(Dispatchers.Default).launch {
+                            val messages = result.messages.map { it.toDomain() }
+                            continuation.resume(messages)
+                        }
                     }
                     is TdApi.Error -> continuation.resumeWithException(Exception("TDLib error: ${result.code} ${result.message}"))
-                    else -> continuation.resumeWithException(Exception("Unexpected result from sendMessage: $result"))
+                    else -> continuation.resumeWithException(Exception("Unexpected result from searchMediaMessages: $result"))
                 }
             }
         }
-
-        clientManager.send(TdApi.SearchChatMessages(chatId, null, "", null, fromMessageId, offset, limit,
-            TdApi.SearchMessagesFilterPhotoAndVideo()), handler)
     }
 
-    override suspend fun getReplyMessage(chatId: Long, messageId: Long): Message? = suspendCancellableCoroutine { continuation ->
-        clientManager.send(TdApi.GetMessage(chatId, messageId)) { result ->
-            if (continuation.isActive) {
-                when (result.constructor) {
-                    TdApi.Message.CONSTRUCTOR -> {
-                        val tdMsg = result as TdApi.Message
-                        continuation.resume(tdMsg.toDomain())
-                    }
-                    TdApi.Error.CONSTRUCTOR -> {
-                        continuation.resume(null)
-                    }
-
-                    else -> {
-                        continuation.resume(null)
+    override suspend fun getReplyMessage(chatId: Long, messageId: Long): Message? =
+        suspendCancellableCoroutine { continuation ->
+            clientManager.send(TdApi.GetMessage(chatId, messageId)) { result ->
+                if (continuation.isActive) {
+                    when (result.constructor) {
+                        TdApi.Message.CONSTRUCTOR -> {
+                            CoroutineScope(Dispatchers.Default).launch {
+                                val tdMsg = result as TdApi.Message
+                                continuation.resume(tdMsg.toDomain())
+                            }
+                        }
+                        else -> continuation.resume(null)
                     }
                 }
             }
         }
-
-        continuation.invokeOnCancellation {
-            // TODO
-        }
-    }
 }
-
-

@@ -18,7 +18,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -64,6 +63,7 @@ fun DraggableAreaForFloatingPlayer(
     val offset = remember { Animatable(Offset(-stickyOffsetPx, screenHeight / 4), Offset.VectorConverter) }
     val closeButtonOffset = remember { Animatable(Offset(0f, closeHiddenY), Offset.VectorConverter) }
 
+    var isOnLeftSide by remember { mutableStateOf(offset.value.x < screenWidth / 2) }
     var dragPosition by remember { mutableStateOf(Offset.Zero) }
     var isDragging by remember { mutableStateOf(false) }
     var isInsideCloseZone by remember { mutableStateOf(false) }
@@ -105,6 +105,7 @@ fun DraggableAreaForFloatingPlayer(
             viewModel = viewModel,
             onWidgetClick = onWidgetClick,
             onSizeChanged = { size -> childSize = size },
+            isOnLeftSide = isOnLeftSide,
             modifier = Modifier
                 .offset {
                     IntOffset(
@@ -168,6 +169,7 @@ fun DraggableAreaForFloatingPlayer(
                                     closeButtonOffset.animateTo(Offset(0f, closeTargetY))
                                 }
                             }
+                            isOnLeftSide = offset.value.x < screenWidth / 2
                         }
                     )
                 }

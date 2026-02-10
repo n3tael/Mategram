@@ -10,7 +10,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -19,128 +18,120 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 @Singleton
 class TdClientManagerImpl @Inject constructor() : TdClientManager {
-    private lateinit var _client: Client
+    private val isInitialized = AtomicBoolean(false)
+
+    @Volatile
+    private var _client: Client? = null
     override val client: Client
-        get() = _client
+        get() = _client ?: throw IllegalStateException("Client is not initialized yet. Wait for AuthorizationState.")
 
     private val _authUpdatesFlow = MutableStateFlow<TdApi.AuthorizationState>(TdApi.AuthorizationStateWaitTdlibParameters())
     override val authUpdatesFlow: StateFlow<TdApi.AuthorizationState> = _authUpdatesFlow.asStateFlow()
 
-    private val _newMessagesFlow = MutableSharedFlow<TdApi.Update>(
-        replay = 25,
-        extraBufferCapacity = 256,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
+    private val _newMessagesFlow = MutableSharedFlow<TdApi.Update>(replay = 25, extraBufferCapacity = 256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val newMessagesFlow: SharedFlow<TdApi.Update> = _newMessagesFlow
 
-    private val _chatsUpdatesFlow = MutableSharedFlow<TdApi.Update>(
-        replay = 25,
-        extraBufferCapacity = 256,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
+    private val _chatsUpdatesFlow = MutableSharedFlow<TdApi.Update>(replay = 25, extraBufferCapacity = 256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val chatsUpdatesFlow: SharedFlow<TdApi.Update> = _chatsUpdatesFlow.asSharedFlow()
 
-    private val _chatFoldersUpdatesFlow = MutableSharedFlow<TdApi.Update>(
-        replay = 25,
-        extraBufferCapacity = 256,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
+    private val _chatFoldersUpdatesFlow = MutableSharedFlow<TdApi.Update>(replay = 25, extraBufferCapacity = 256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val chatFoldersUpdatesFlow: SharedFlow<TdApi.Update> = _chatFoldersUpdatesFlow.asSharedFlow()
 
-    private val _filesUpdatesFlow = MutableSharedFlow<TdApi.UpdateFile>(
-        replay = 25,
-        extraBufferCapacity = 256,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
+    private val _filesUpdatesFlow = MutableSharedFlow<TdApi.UpdateFile>(replay = 25, extraBufferCapacity = 256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val filesUpdatesFlow: SharedFlow<TdApi.UpdateFile> = _filesUpdatesFlow.asSharedFlow()
 
-    private val _updatesFlow = MutableSharedFlow<TdApi.Object>(
-        replay = 25,
-        extraBufferCapacity = 256,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
+    private val _updatesFlow = MutableSharedFlow<TdApi.Object>(replay = 25, extraBufferCapacity = 256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val updatesFlow: SharedFlow<TdApi.Object> = _updatesFlow.asSharedFlow()
-
-    init {
-        try {
-            System.loadLibrary("tdjni")
-        } catch (e: UnsatisfiedLinkError) {
-            e.printStackTrace()
-        }
-    }
 
     private val tdClientManagerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     override fun initialize(context: Context) {
-        if (this::_client.isInitialized) return
-
-        _client = Client.create({ update ->
-            when (update) {
-                is TdApi.UpdateAuthorizationState -> {
-                    _authUpdatesFlow.value = update.authorizationState
+        if (isInitialized.getAndSet(true)) return
+        tdClientManagerScope.launch {
+            try {
+                try {
+                    System.loadLibrary("tdjni")
+                } catch (e: UnsatisfiedLinkError) {
+                    Log.e("TdClientManager", "Failed to load tdjni", e)
                 }
-                is TdApi.UpdateChatFolders,
-                is TdApi.UpdateUnreadChatCount ->
-                    _chatFoldersUpdatesFlow.tryEmit(update)
-                is TdApi.UpdateNewChat,
-                is TdApi.UpdateChatPosition,
-                is TdApi.UpdateChatLastMessage,
-                is TdApi.UpdateChatReadInbox,
-                is TdApi.UpdateChatTitle,
-                is TdApi.UpdateChatPhoto,
-                is TdApi.UpdateUser,
-                is TdApi.UpdateUserStatus ->
-                    _chatsUpdatesFlow.tryEmit(update)
-                is TdApi.UpdateFile ->
-                    _filesUpdatesFlow.tryEmit(update)
-                is TdApi.UpdateMessageSendFailed,
-                is TdApi.UpdateMessageInteractionInfo,
-                is TdApi.UpdateMessageSendSucceeded,
-                is TdApi.UpdateChatAction,
-                is TdApi.UpdateDeleteMessages,
-                is TdApi.UpdateNewMessage ->
-                    _newMessagesFlow.tryEmit(update)
-                is TdApi.UpdateChatReadOutbox -> {
-                    _chatsUpdatesFlow.tryEmit(update)
+
+                TelegramCredentials.initialize(context)
+
+                try {
+                    Client.execute(TdApi.SetLogVerbosityLevel(1))
+                } catch (e: Exception) { }
+
+                _client = Client.create({ update ->
+                    handleUpdate(update)
+                }, null, null)
+
+                val languagePackDbPath = File(context.filesDir, "language_pack.sqlite").absolutePath
+
+                _client?.send(TdApi.SetOption("language_pack_database_path", TdApi.OptionValueString(languagePackDbPath))) { result ->
+                    if (result is TdApi.Error) {
+                        Log.e("TdLibRepo", "Error setting lang pack: ${result.message}")
+                    }
                 }
-            }
-            _updatesFlow.tryEmit(update)
-        }, null, null)
 
-        TelegramCredentials.initialize(context)
-
-        val languagePackDbPath = File(context.filesDir, "language_pack.sqlite").absolutePath
-
-        send(TdApi.SetOption("language_pack_database_path", TdApi.OptionValueString(languagePackDbPath))) { result ->
-            if (result is TdApi.Error) {
-                Log.e("TdLibRepo", "Failed to set language_pack_database_path option: ${result.message}")
-            } else {
-                Log.d("TdLibRepo", "Successfully set language_pack_database_path option to $languagePackDbPath.")
+            } catch (e: Exception) {
+                Log.e("TdClientManager", "Initialization failed", e)
             }
         }
     }
 
+    private fun handleUpdate(update: TdApi.Object) {
+        if (update is TdApi.Update) {
+            when (update) {
+                is TdApi.UpdateAuthorizationState -> _authUpdatesFlow.value = update.authorizationState
+                is TdApi.UpdateChatFolders, is TdApi.UpdateUnreadChatCount -> _chatFoldersUpdatesFlow.tryEmit(update)
+                is TdApi.UpdateNewChat, is TdApi.UpdateChatPosition, is TdApi.UpdateChatLastMessage,
+                is TdApi.UpdateChatReadInbox, is TdApi.UpdateChatTitle, is TdApi.UpdateChatPhoto,
+                is TdApi.UpdateUser, is TdApi.UpdateUserStatus, is TdApi.UpdateChatReadOutbox -> _chatsUpdatesFlow.tryEmit(update)
+                is TdApi.UpdateFile -> _filesUpdatesFlow.tryEmit(update)
+                is TdApi.UpdateNewMessage, is TdApi.UpdateMessageContent, is TdApi.UpdateMessageEdited,
+                is TdApi.UpdateDeleteMessages, is TdApi.UpdateChatAction, is TdApi.UpdateMessageSendSucceeded,
+                is TdApi.UpdateMessageInteractionInfo, is TdApi.UpdateMessageSendFailed -> _newMessagesFlow.tryEmit(update)
+            }
+        }
+        _updatesFlow.tryEmit(update)
+    }
+
     override fun send(query: TdApi.Function<*>, handler: Client.ResultHandler?) {
-        _client.send(query, handler)
+        val currentClient = _client
+        if (currentClient != null) {
+            currentClient.send(query, handler)
+        } else {
+            Log.w("TdClientManager", "Attempting to send query ${query.javaClass.simpleName} before Client is initialized")
+        }
     }
 
     override suspend fun <T : TdApi.Object> sendSuspend(query: TdApi.Function<*>): T =
-        suspendCancellableCoroutine { cont ->
-            this.send(query) { result ->
-                if (result.constructor == TdApi.Error.CONSTRUCTOR) {
-                    val error = result as TdApi.Error
-                    cont.resumeWithException(RuntimeException("TDLib Error: ${error.code} - ${error.message}"))
-                } else {
-                    @Suppress("UNCHECKED_CAST")
-                    cont.resume(result as T)
+        withContext(Dispatchers.IO) {
+            suspendCancellableCoroutine { cont ->
+                val currentClient = _client
+                if (currentClient == null) {
+                    cont.resumeWithException(IllegalStateException("TDLib client is not initialized"))
+                    return@suspendCancellableCoroutine
+                }
+
+                currentClient.send(query) { result ->
+                    if (result.constructor == TdApi.Error.CONSTRUCTOR) {
+                        val error = result as TdApi.Error
+                        cont.resumeWithException(RuntimeException("TDLib Error: ${error.code} - ${error.message}"))
+                    } else {
+                        @Suppress("UNCHECKED_CAST")
+                        cont.resume(result as T)
+                    }
                 }
             }
         }

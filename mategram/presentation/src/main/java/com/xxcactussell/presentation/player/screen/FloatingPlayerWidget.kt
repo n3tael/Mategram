@@ -9,15 +9,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.layout.onVisibilityChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.xxcactussell.presentation.chats.model.AvatarUiState
 import com.xxcactussell.presentation.chats.screen.ChatAvatar
 import com.xxcactussell.presentation.localization.localizedString
-import com.xxcactussell.presentation.messages.model.MessagesEvent
-import com.xxcactussell.presentation.messages.model.getChatId
 import com.xxcactussell.presentation.messages.screen.CircleVideoSurface
 import com.xxcactussell.presentation.player.viewmodel.GlobalPlayerViewModel
 
@@ -27,6 +24,7 @@ fun FloatingPlayerWidget(
     onWidgetClick: (Long, Long?) -> Unit,
     modifier: Modifier = Modifier,
     onSizeChanged: (Dp) -> Unit,
+    isOnLeftSide: Boolean,
 ) {
     val state by viewModel.playerState.collectAsState()
     val playerInstance = viewModel.getExoPlayerInstance()

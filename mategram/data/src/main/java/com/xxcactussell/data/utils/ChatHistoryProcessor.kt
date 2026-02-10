@@ -7,8 +7,10 @@ import com.xxcactussell.data.utils.mappers.message.toDomain
 import com.xxcactussell.domain.ChatAction
 import com.xxcactussell.domain.ChatActionCancel
 import com.xxcactussell.domain.Message
+import com.xxcactussell.domain.MessageContent
 import com.xxcactussell.domain.MessageInteractionInfo
 import com.xxcactussell.domain.MessageReplyToMessage
+import com.xxcactussell.domain.ReplyMarkup
 import com.xxcactussell.repositories.messages.model.MessageListItem
 import com.xxcactussell.repositories.messages.utils.getId
 import kotlinx.coroutines.CoroutineScope
@@ -81,6 +83,33 @@ class ChatHistoryProcessor(
         }
     }
 
+    fun processUpdateContent(messageId: Long, content: MessageContent) {
+        val currentList = _items.value
+        val updatedList = currentList.map { item ->
+            when (item) {
+                is MessageListItem.MessageItem -> {
+                    if (item.message.id == messageId) {
+                        item.copy(message = item.message.copy(content = content))
+                    } else {
+                        item
+                    }
+                }
+                is MessageListItem.AlbumItem -> {
+                    if (item.messages.any { it.id == messageId }) {
+                        val newMsgs = item.messages.map { if (it.id == messageId) it.copy(content = content) else it }
+                        item.copy(messages = newMsgs)
+                    } else {
+                        item
+                    }
+                }
+            }
+        }
+
+        if (updatedList != currentList) {
+            _items.value = updatedList
+        }
+    }
+
     fun processUpdateInteractionInfo(messageId: Long, interaction: MessageInteractionInfo?) {
         val currentList = _items.value
         val updatedList = currentList.map { item ->
@@ -129,8 +158,6 @@ class ChatHistoryProcessor(
 
     fun processUpdatedMessage(oldId: Long, updatedMessage: Message) {
         scope.launch {
-            val currentList = _items.value
-
             var message = updatedMessage
 
             if (message.replyTo is MessageReplyToMessage) {
@@ -143,6 +170,8 @@ class ChatHistoryProcessor(
                     )
                 )
             }
+
+            val currentList = _items.value
 
             val updatedList = currentList.map { item ->
                 when (item) {
@@ -370,5 +399,29 @@ class ChatHistoryProcessor(
         }.flatten()
         val index = messages.indexOfFirst { it.id == startId }
         return messages.slice(index..messages.lastIndex)
+    }
+
+    fun processEditMessage(messageId: Long, editDate: Int, replyMarkup: ReplyMarkup?) {
+        val currentList = _items.value
+        val updatedList = currentList.map { item ->
+            when (item) {
+                is MessageListItem.MessageItem -> {
+                    if (item.message.id == messageId) item.copy(message = item.message.copy(editDate = editDate, replyMarkup = replyMarkup)) else item
+                }
+                is MessageListItem.AlbumItem -> {
+                    if (item.messages.any { it.id == messageId }) {
+                        val newMsgs =
+                            item.messages.map { if (it.id == messageId) it.copy(editDate = editDate, replyMarkup = replyMarkup) else it }
+                        item.copy(messages = newMsgs)
+                    } else {
+                        item
+                    }
+                }
+            }
+        }
+
+        if (updatedList != currentList) {
+            _items.value = updatedList
+        }
     }
 }
