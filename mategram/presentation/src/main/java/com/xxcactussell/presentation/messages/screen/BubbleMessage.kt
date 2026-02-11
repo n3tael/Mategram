@@ -185,7 +185,7 @@ fun BubbleMessage(
             }
 
             if (forwardInfo != null) {
-                ForwardMarkup(forwardInfo = forwardInfo, isOutgoing, onLinkClicked)
+                ForwardMarkup(forwardInfo = forwardInfo, isDateShown, isOutgoing, onLinkClicked)
                 Spacer(modifier = Modifier.height(4.dp))
             }
 

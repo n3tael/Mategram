@@ -292,7 +292,8 @@ class MessagesRepositoryImpl @Inject constructor(
                                         chat = originChat?.firstName + " " + originChat?.lastName,
                                         link = ForwardInfoLink(
                                             chatId = origin.senderUserId
-                                        )
+                                        ),
+                                        date = message.forwardInfo!!.date
                                     )
                                 )
                             }
@@ -305,7 +306,8 @@ class MessagesRepositoryImpl @Inject constructor(
                                         signature = origin.authorSignature,
                                         link = ForwardInfoLink(
                                             chatId = origin.senderChatId
-                                        )
+                                        ),
+                                        date = message.forwardInfo!!.date
                                     )
                                 )
                             }
@@ -319,13 +321,15 @@ class MessagesRepositoryImpl @Inject constructor(
                                         link = ForwardInfoLink(
                                             chatId = origin.chatId,
                                             messageId = origin.messageId
-                                        )
+                                        ),
+                                        date = message.forwardInfo!!.date
                                     )
                                 )
                             }
                             is MessageOriginHiddenUser -> newMessage.copy(
                                 forwardFullInfo = ForwardFullInfo(
-                                    isHidden = true
+                                    isHidden = true,
+                                    date = message.forwardInfo!!.date
                                 )
                             )
                         }
