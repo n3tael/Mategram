@@ -8,6 +8,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.ViewModelStoreOwner
 import com.xxcactussell.presentation.chats.model.ChatEffect
 import com.xxcactussell.presentation.messages.model.InputEvent
 import com.xxcactussell.presentation.messages.model.MessagesEvent
@@ -18,6 +19,7 @@ import com.xxcactussell.presentation.messages.viewmodel.MessagesViewModelFactory
 fun MessagesScreen(
     chatId: Long,
     startMessageId: Long? = null,
+    owner: ViewModelStoreOwner,
     lastReadInboxMessageId: Long? = null,
     onProfileClicked: (Long) -> Unit,
     onCameraClicked: () -> Unit,
@@ -26,6 +28,7 @@ fun MessagesScreen(
     onMediaClicked: (Long) -> Unit,
 ) {
     val viewModel: MessagesViewModel = hiltViewModel(
+        viewModelStoreOwner = owner,
         creationCallback = { factory: MessagesViewModelFactory ->
             factory.create(chatId, startMessageId, lastReadInboxMessageId)
         },

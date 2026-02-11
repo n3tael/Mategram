@@ -8,8 +8,32 @@ Made with Kotlin and love ❤️
 
 > **Note:** I am just a novice in coding, so the code may contain errors or non-optimal solutions. Contributions, suggestions, and bug reports are very welcome!
 
----
 
-**Telegram channel:** https://t.me/mategram_client
+## Build
+
+To build the project, you need to set up your environment:
+
+1.  **Configure `local.properties`**
+    Define your Telegram API credentials in the `local.properties` file located in the root directory:
+    ```properties
+    TELEGRAM_API_ID=123456
+    TELEGRAM_API_HASH=your_api_hash
+    ```
+
+2.  **Google Services**
+    Place your `google-services.json` file in the `mategram/mategram` directory.
 
 
+## Contacts
+
+**Dev:** Artem Batinkin ([@xxcactussell](https:xxcactussell.com))
+
+**News:** [Mategram Telegram Channel](https://t.me/mategram_client)
+
+## License
+
+Copyright (C) 2025–2026 Artem Batinkin (xxcactussell)
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the [GNU General Public License](LICENSE) for more details.

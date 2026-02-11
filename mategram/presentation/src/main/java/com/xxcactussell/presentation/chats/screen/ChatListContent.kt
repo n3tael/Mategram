@@ -15,8 +15,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -34,7 +34,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.SearchBarValue
 import androidx.compose.material3.Text
@@ -167,40 +166,43 @@ fun ChatListContent(
                         contentPadding = PaddingValues(WindowInsets.displayCutout.asPaddingValues().calculateStartPadding(LocalLayoutDirection.current) + 12.dp, 0.dp, WindowInsets.displayCutout.asPaddingValues().calculateEndPadding(LocalLayoutDirection.current) + 12.dp, 0.dp),
                         horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        state.allTabs.forEachIndexed { index, tab ->
-                            item {
-                                ToggleButton(
-                                    checked = state.selectedIndex == index,
-                                    onCheckedChange = {
-                                        scope.launch {
-                                            pagerState.animateScrollToPage(index)
-                                            foldersFiltersState.animateScrollToItem(index)
-                                        }
-                                        if (it) {
-                                            haptic.performHapticFeedback(HapticFeedbackType.ToggleOn)
-                                        } else {
-                                            haptic.performHapticFeedback(HapticFeedbackType.ToggleOff)
-                                        }
+                        itemsIndexed(
+                            items = state.allTabs,
+                            key = { _, tab ->
+                                "tab_id_${tab.id}"
+                            }
+                        ) { index, tab ->
+                            ToggleButton(
+                                checked = state.selectedIndex == index,
+                                onCheckedChange = {
+                                    scope.launch {
+                                        pagerState.animateScrollToPage(index)
+                                        foldersFiltersState.animateScrollToItem(index)
+                                    }
+                                    if (it) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.ToggleOn)
+                                    } else {
+                                        haptic.performHapticFeedback(HapticFeedbackType.ToggleOff)
+                                    }
+                                },
+                                shapes =
+                                    when (index) {
+                                        0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                        state.allTabs.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                                     },
-                                    shapes =
-                                        when (index) {
-                                            0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                                            state.allTabs.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                                        },
-                                ) {
-                                    FormattedTextView(text = if (tab.title != null) tab.title.text else FormattedText(
-                                        localizedString("FilterAllChats"),
-                                        emptyList()
-                                    ), clickable = false)
-                                    tab.unreadCount.let {
-                                        if (it > 0) {
-                                            Spacer(Modifier.size(ToggleButtonDefaults.IconSpacing))
-                                            Badge (
-                                                containerColor = if (tab.isSelected) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.error
-                                            ) {
-                                                Text("${tab.unreadCount}")
-                                            }
+                            ) {
+                                FormattedTextView(text = if (tab.title != null) tab.title.text else FormattedText(
+                                    localizedString("FilterAllChats"),
+                                    emptyList()
+                                ), clickable = false)
+                                tab.unreadCount.let {
+                                    if (it > 0) {
+                                        Spacer(Modifier.size(ToggleButtonDefaults.IconSpacing))
+                                        Badge (
+                                            containerColor = if (tab.isSelected) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.error
+                                        ) {
+                                            Text("${tab.unreadCount}")
                                         }
                                     }
                                 }

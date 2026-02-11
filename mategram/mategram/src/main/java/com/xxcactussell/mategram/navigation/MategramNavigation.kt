@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
@@ -50,6 +51,7 @@ import com.xxcactussell.presentation.LocalRootViewModel
 import com.xxcactussell.presentation.LocalSharedTransitionScope
 import com.xxcactussell.presentation.auth.screen.navigation.AuthScreen
 import com.xxcactussell.presentation.chats.screen.ChatsListScreen
+import com.xxcactussell.presentation.chats.viewmodel.ChatsViewModel
 import com.xxcactussell.presentation.localization.LocalizationManager
 import com.xxcactussell.presentation.mediaviewer.screen.MediaViewerScreen
 import com.xxcactussell.presentation.messages.model.InputEvent
@@ -129,7 +131,10 @@ fun MategramNavigation(
                                     sceneKey = "ChatLDPane"
                                 )
                             ) {
+                                val entryOwner = LocalViewModelStoreOwner.current ?: throw IllegalStateException("ViewModelStoreOwner not found")
+                                val viewModel: ChatsViewModel = hiltViewModel<ChatsViewModel>(viewModelStoreOwner = entryOwner)
                                 ChatsListScreen(
+                                    viewModel = viewModel,
                                     onChatClick = { chatId, messageId, lastReadInboxMessageId ->
                                         if (backStack.last() is RouteChatDetail) {
                                             backStack[backStack.lastIndex] = RouteChatDetail(chatId, messageId, lastReadInboxMessageId)
@@ -170,9 +175,12 @@ fun MategramNavigation(
                                     )
                                 },
                             ) { chat ->
+                                val entryOwner = LocalViewModelStoreOwner.current ?: throw IllegalStateException("ViewModelStoreOwner not found")
+
                                 MessagesScreen(
                                     chatId = chat.chatId,
                                     startMessageId = chat.messageId,
+                                    owner = entryOwner,
                                     lastReadInboxMessageId = chat.lastReadInboxMessageId,
                                     onProfileClicked = { },
                                     onCameraClicked = {
