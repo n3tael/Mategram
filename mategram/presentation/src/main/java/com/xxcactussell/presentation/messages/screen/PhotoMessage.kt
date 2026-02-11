@@ -12,7 +12,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalIconButton
@@ -30,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -42,6 +45,7 @@ import com.xxcactussell.domain.Video
 import com.xxcactussell.mategram.presentation.R
 import com.xxcactussell.presentation.LocalRootViewModel
 import com.xxcactussell.presentation.LocalSharedTransitionScope
+import com.xxcactussell.presentation.messages.model.MessagesEvent
 import com.xxcactussell.presentation.tools.messageContentAspectRatio
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -51,9 +55,11 @@ import kotlinx.coroutines.withContext
 fun PhotoMessage(
     modifier: Modifier = Modifier,
     messageId: Long,
+    chatId: Long,
     photo: Photo,
     isSending: Boolean,
     isFailed: Boolean,
+    onEvent: (Any) -> Unit,
     onMediaClicked: (Long) -> Unit
 ) {
     val photoSize = photo.sizes.maxByOrNull { it.width }?.photo ?: return
@@ -62,7 +68,7 @@ fun PhotoMessage(
     val fileUpdates = rootViewModel.files.collectAsState()
 
     val file = fileUpdates.value[photoSize.id] ?: photoSize
-
+    val fileState = rootViewModel.observeFileStatus(file.id).collectAsState(initial = null)
 
     if (file.local.isDownloadingCompleted && file.local.path.isNotEmpty()) {
         var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
@@ -78,61 +84,69 @@ fun PhotoMessage(
             }
         }
 
-        val sharedTransitionScope = LocalSharedTransitionScope.current
-            ?: throw IllegalStateException("No SharedElementScope found")
-        val animatedVisibilityScope = LocalNavAnimatedContentScope.current
-
         if (bitmap != null) {
-            with(sharedTransitionScope) {
-                Box(
+            Box(
+                modifier = Modifier
+                    .then(modifier),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
                     modifier = Modifier
-                        .sharedBounds(
-                            rememberSharedContentState(key = "bounds_$messageId"),
-                            animatedVisibilityScope = animatedVisibilityScope,
-                            enter = fadeIn(),
-                            exit = fadeOut(),
-                            resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds()
-                        )
-                        .then(modifier),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clickable {
-                                onMediaClicked(messageId)
-                            },
-                        bitmap = bitmap!!,
-                        contentDescription = "Photo",
-                        contentScale = ContentScale.Crop
-                    )
-                    if (isSending) {
+                        .fillMaxSize()
+                        .clickable {
+                            onMediaClicked(messageId)
+                        },
+                    bitmap = bitmap!!,
+                    contentDescription = "Photo",
+                    contentScale = ContentScale.Crop
+                )
+                if (isSending) {
+                    Box(
+                        Modifier
+                            .clip(CircleShape)
+                            .size(48.dp)
+                            .background(MaterialTheme.colorScheme.surfaceContainer),
+                        Alignment.Center
+                    ) {
                         CircularWavyProgressIndicator(
-                            color = MaterialTheme.colorScheme.onPrimary,
                             progress = {
-                                photoSize.remote.uploadedSize / photoSize.expectedSize.toFloat()
+                                if ((fileState.value?.expectedSize ?: 0) > 0) {
+                                    (fileState.value?.remote?.uploadedSize?.toFloat()
+                                        ?: 0f) / (fileState.value?.expectedSize?.toFloat()
+                                        ?: 1f)
+                                } else {
+                                    0f
+                                }
                             }
                         )
                         IconButton(
-                            onClick = { /*TODO*/ },
+                            onClick = {
+                                onEvent(
+                                    MessagesEvent.CancelUploadFile(
+                                        messageId,
+                                        chatId
+                                    )
+                                )
+                            },
                             colors = IconButtonDefaults.iconButtonColors(
                                 containerColor = Color.Transparent
                             )
                         ) {
                             Icon(
                                 painterResource(R.drawable.close_24px),
-                                "Stop loading"
+                                "Stop loading",
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
-                    } else if (isFailed) {
-                        IconButton(
-                            onClick = { /*TODO*/ }
-                        ) {
-                            Icon(
-                                painterResource(R.drawable.refresh_24px),
-                                "Retry loading"
-                            )
-                        }
+                    }
+                } else if (isFailed) {
+                    IconButton(
+                        onClick = { /*TODO*/ }
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.refresh_24px),
+                            "Retry loading"
+                        )
                     }
                 }
             }
@@ -162,11 +176,13 @@ fun PhotoMessage(
 @Composable
 fun MessageVideoContent(
     modifier: Modifier = Modifier,
+    chatId: Long,
     messageId: Long,
     video: Video,
     videoCover: Photo?,
     isSending: Boolean,
     isFailed: Boolean,
+    onEvent: (Any) -> Unit,
     onMediaClicked: (Long) -> Unit
 ) {
     val cover = if (videoCover != null) {
@@ -179,7 +195,7 @@ fun MessageVideoContent(
     val fileUpdates = rootViewModel.files.collectAsState()
 
     val file = fileUpdates.value[cover.id] ?: cover
-
+    val fileState = rootViewModel.observeFileStatus(video.video.id).collectAsState(initial = null)
 
     if (file.local.isDownloadingCompleted && file.local.path.isNotEmpty()) {
         var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
@@ -192,7 +208,6 @@ fun MessageVideoContent(
                 try {
                     retriever.setDataSource(path)
                     val hasVideo = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO)
-
                     val decodedBitmap = if (hasVideo == "yes") {
                         retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
                     } else {
@@ -208,69 +223,72 @@ fun MessageVideoContent(
             }
         }
 
-        val sharedTransitionScope = LocalSharedTransitionScope.current
-            ?: throw IllegalStateException("No SharedElementScope found")
-        val animatedVisibilityScope = LocalNavAnimatedContentScope.current
-
         if (bitmap != null) {
-            with(sharedTransitionScope) {
-                Box(
+            Box(
+                modifier = Modifier
+                    .then(modifier),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
                     modifier = Modifier
-                        .sharedBounds(
-                            rememberSharedContentState(key = "bounds_$messageId"),
-                            animatedVisibilityScope = animatedVisibilityScope,
-                            enter = fadeIn(),
-                            exit = fadeOut(),
-                            resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds()
-                        )
-                        .then(modifier),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(
-                        modifier = Modifier
-                            .fillMaxSize(),
-                        bitmap = bitmap!!,
-                        contentDescription = "Photo",
-                        contentScale = ContentScale.Crop
-                    )
-                    if (isSending) {
+                        .fillMaxSize(),
+                    bitmap = bitmap!!,
+                    contentDescription = "Photo",
+                    contentScale = ContentScale.Crop
+                )
+                if (isSending) {
+                    Box(
+                        Modifier
+                            .clip(CircleShape)
+                            .size(48.dp)
+                            .background(MaterialTheme.colorScheme.surfaceContainer),
+                        Alignment.Center
+                    ) {
                         CircularWavyProgressIndicator(
-                            color = MaterialTheme.colorScheme.onPrimary,
                             progress = {
-                                video.video.remote.uploadedSize / video.video.expectedSize.toFloat()
+                                if ((fileState.value?.expectedSize ?: 0) > 0) {
+                                    (fileState.value?.remote?.uploadedSize?.toFloat()
+                                        ?: 0f) / (fileState.value?.expectedSize?.toFloat()
+                                        ?: 1f)
+                                } else {
+                                    0f
+                                }
                             }
                         )
                         IconButton(
-                            onClick = { /*TODO*/ },
+                            onClick = {
+                                onEvent(MessagesEvent.CancelUploadFile(messageId, chatId))
+                            },
                             colors = IconButtonDefaults.iconButtonColors(
                                 containerColor = Color.Transparent
                             )
                         ) {
                             Icon(
                                 painterResource(R.drawable.close_24px),
-                                "Stop loading"
+                                "Stop loading",
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
-                    } else if (isFailed) {
-                        IconButton(
-                            onClick = { /*TODO*/ }
-                        ) {
-                            Icon(
-                                painterResource(R.drawable.refresh_24px),
-                                "Retry loading"
-                            )
+                    }
+                } else if (isFailed) {
+                    IconButton(
+                        onClick = { /*TODO*/ }
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.refresh_24px),
+                            "Retry loading"
+                        )
+                    }
+                } else {
+                    FilledTonalIconButton(
+                        onClick = {
+                            onMediaClicked(messageId)
                         }
-                    } else {
-                        FilledTonalIconButton(
-                            onClick = {
-                                onMediaClicked(messageId)
-                            }
-                        ) {
-                            Icon(
-                                painterResource(R.drawable.play_arrow_24px),
-                                "Play"
-                            )
-                        }
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.play_arrow_24px),
+                            "Play"
+                        )
                     }
                 }
             }

@@ -149,6 +149,10 @@ class MessagesRepositoryImpl @Inject constructor(
         return getProcessor(chatId).action
     }
 
+    override fun cancelSendMessageAndUploadFile(messageId: Long, chatId: Long) {
+        clientManager.send(TdApi.DeleteMessages(chatId, longArrayOf(messageId), true))
+    }
+
     override fun loadMoreHistory(chatId: Long, messageId: Long?) {
         if (messageId == null) {
             getProcessor(chatId).loadMoreHistory()

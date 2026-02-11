@@ -56,6 +56,6 @@ fun Modifier.messageContentAspectRatio(w: Float?, h: Float?) : Modifier {
         else -> 3f / 2f
     }
     return this
-        .sizeIn(maxWidth = 260.dp, maxHeight = 260.dp)
+        .sizeIn(maxWidth = 260.dp, maxHeight = 390.dp)
         .aspectRatio(aspectRatio)
 }

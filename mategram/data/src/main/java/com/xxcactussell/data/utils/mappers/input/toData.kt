@@ -333,7 +333,7 @@ fun InputMessageAnimation.toData(): TdApi.InputMessageAnimation = TdApi.InputMes
 
 fun InputMessageAudio.toData(): TdApi.InputMessageAudio = TdApi.InputMessageAudio(
     this.audio.toData(),
-    this.albumCoverThumbnail.toData(),
+    this.albumCoverThumbnail?.toData(),
     this.duration,
     this.title,
     this.performer,
@@ -378,7 +378,7 @@ fun InputMessageDice.toData(): TdApi.InputMessageDice = TdApi.InputMessageDice(
 
 fun InputMessageDocument.toData(): TdApi.InputMessageDocument = TdApi.InputMessageDocument(
     this.document.toData(),
-    this.thumbnail.toData(),
+    this.thumbnail?.toData(),
     this.disableContentTypeDetection,
     this.caption.toData()
 )

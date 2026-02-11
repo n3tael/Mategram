@@ -63,6 +63,7 @@ sealed interface MessagesEvent {
     data class PlayVoice(val messageId: Long, val chatId: Long) : MessagesEvent
     data class PlayVideo(val messageId: Long, val chatId: Long) : MessagesEvent
     data class PauseMedia(val messageId: Long) : MessagesEvent
+    data class CancelUploadFile(val messageId: Long, val chatId: Long) : MessagesEvent
     data class Initialize(val startMessageId: Long?, val lastReadInboxMessageId: Long?) : MessagesEvent
     object LoadMoreNewer : MessagesEvent
 }

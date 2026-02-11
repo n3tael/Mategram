@@ -1,6 +1,7 @@
 package com.xxcactussell.repositories.messages.repository
 
 import android.net.Uri
+import android.os.FileUtils
 import com.xxcactussell.domain.Chat
 import com.xxcactussell.domain.ChatAction
 import com.xxcactussell.domain.FormattedText
@@ -28,6 +29,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import java.io.File
 import javax.inject.Inject
 
 interface MessagesRepository {
@@ -54,6 +56,7 @@ interface MessagesRepository {
 
     fun removeReactionFromMessage(chatId: Long, messageId: Long, reactionType: ReactionType)
     fun getChatActionFlow(chatId: Long): Flow<ChatAction>
+    fun cancelSendMessageAndUploadFile(messageId: Long, chatId: Long)
 }
 
 
@@ -123,6 +126,10 @@ class OpenChatUseCase @Inject constructor(private val repository: MessagesReposi
     suspend operator fun invoke(chatId: Long) : Chat? = repository.openChat(chatId)
 }
 
+class CancelSendMessageAndUploadFileUseCase @Inject constructor(private val repository: MessagesRepository) {
+    operator fun invoke(messageId: Long, chatId: Long) = repository.cancelSendMessageAndUploadFile(messageId, chatId)
+}
+
 class CloseChatUseCase @Inject constructor(private val repository: MessagesRepository) {
     operator fun invoke(chatId: Long) = repository.closeChat(chatId)
 }
@@ -145,10 +152,14 @@ class BuildMessageContentUseCase @Inject constructor(
         attachmentsType: String? = null
     ): List<InputMessageContent> = withContext(Dispatchers.IO) {
 
+        val showCaptionAboveMedia = false
+
         val contentList = uris.mapNotNull { uri ->
             val path = fileHelper.getLocalPath(uri) ?: return@mapNotNull null
-            val mimeType = fileHelper.getMimeType(uri) ?: "application/octet-stream"
 
+            if (File(path).length() == 0L) return@mapNotNull null
+
+            val mimeType = fileHelper.getMimeType(uri) ?: "application/octet-stream"
             val inputFile = InputFileLocal(path)
 
             val caption = FormattedText(
@@ -156,55 +167,65 @@ class BuildMessageContentUseCase @Inject constructor(
                 captionEntities
             )
 
-            when(attachmentsType) {
+            val meta = fileHelper.extractMediaMetadata(uri)
+
+            when (attachmentsType) {
                 "Media" -> {
                     when {
                         mimeType.startsWith("image/") && !mimeType.endsWith("/gif") -> {
-                            val meta = fileHelper.extractMediaMetadata(uri)
+                            val thumbnail = fileHelper.generateThumbnail(path, isVideo = false)
+                                ?: fileHelper.generateDummyThumbnail()
+
                             InputMessagePhoto(
                                 photo = inputFile,
-                                thumbnail = InputThumbnail(inputFile, meta.width, meta.height),
+                                thumbnail = thumbnail,
+                                addedStickerFileIds = intArrayOf(),
                                 width = meta.width,
                                 height = meta.height,
                                 caption = caption,
+                                selfDestructType = null,
                                 hasSpoiler = false,
-                                addedStickerFileIds = intArrayOf(),
-                                showCaptionAboveMedia = false,
-                                selfDestructType = null
+                                showCaptionAboveMedia = showCaptionAboveMedia
                             )
                         }
 
                         mimeType.startsWith("video/") -> {
-                            val meta = fileHelper.extractMediaMetadata(uri)
+                            val thumbnail = fileHelper.generateThumbnail(path, isVideo = true)
+                                ?: fileHelper.generateDummyThumbnail()
+
                             InputMessageVideo(
                                 video = inputFile,
-                                thumbnail = InputThumbnail(inputFile, meta.width, meta.height),
-                                cover = inputFile,
+                                thumbnail = thumbnail,
+                                cover = thumbnail.thumbnail,
                                 startTimestamp = 0,
                                 duration = meta.duration,
                                 width = meta.width,
                                 height = meta.height,
                                 caption = caption,
                                 addedStickerFileIds = intArrayOf(),
-                                supportsStreaming = false,
-                                showCaptionAboveMedia = false,
+                                supportsStreaming = true,
+                                hasSpoiler = false,
                                 selfDestructType = null,
-                                hasSpoiler = false
+                                showCaptionAboveMedia = showCaptionAboveMedia
                             )
                         }
 
                         mimeType.startsWith("audio/") -> {
                             InputMessageAudio(
                                 audio = inputFile,
-                                albumCoverThumbnail = InputThumbnail(inputFile, 0, 0),
-                                duration = 0, title = "", performer = "", caption = caption
+                                albumCoverThumbnail = null,
+                                duration = meta.duration,
+                                title = "",
+                                performer = "",
+                                caption = caption
                             )
                         }
 
                         else -> {
+                            // Если тип не распознан как фото/видео/аудио, отправляем как документ
                             InputMessageDocument(
                                 document = inputFile,
-                                thumbnail = InputThumbnail(inputFile, 0, 0),
+                                thumbnail = null,
                                 disableContentTypeDetection = false,
                                 caption = caption
                             )
@@ -215,7 +236,7 @@ class BuildMessageContentUseCase @Inject constructor(
                 else -> {
                     InputMessageDocument(
                         document = inputFile,
-                        thumbnail = InputThumbnail(inputFile, 0, 0),
+                        thumbnail = null,
                         disableContentTypeDetection = false,
                         caption = caption
                     )
@@ -225,17 +246,18 @@ class BuildMessageContentUseCase @Inject constructor(
 
         val finalContentList = mutableListOf<InputMessageContent>()
 
-        if (uris.size > 1) {
-            finalContentList.addAll(contentList)
-        } else if (uris.size == 1) {
-            finalContentList.addAll(contentList)
-        } else if (captionText.isNotBlank()) {
-            finalContentList.add(InputMessageText(
-                FormattedText(captionText, captionEntities),
-                linkPreviewOptions = null,
-                clearDraft = true
-            ))
+        finalContentList.addAll(contentList)
+
+        if (finalContentList.isEmpty() && captionText.isNotBlank()) {
+            finalContentList.add(
+                InputMessageText(
+                    FormattedText(captionText, captionEntities),
+                    linkPreviewOptions = null,
+                    clearDraft = true
+                )
+            )
         }
+
         return@withContext finalContentList
     }
 }

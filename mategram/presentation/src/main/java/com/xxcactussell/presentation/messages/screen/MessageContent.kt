@@ -1,5 +1,8 @@
 package com.xxcactussell.presentation.messages.screen
 
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -21,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import com.xxcactussell.customdomain.ForwardFullInfo
 import com.xxcactussell.domain.MessageAnimatedEmoji
 import com.xxcactussell.domain.MessageAnimation
@@ -36,7 +40,9 @@ import com.xxcactussell.domain.MessageVoiceNote
 import com.xxcactussell.domain.Sticker
 import com.xxcactussell.player.PlayerState
 import com.xxcactussell.presentation.LocalRootViewModel
+import com.xxcactussell.presentation.LocalSharedTransitionScope
 import com.xxcactussell.presentation.messages.model.MessageUiItem
+import com.xxcactussell.presentation.messages.model.getChatId
 import com.xxcactussell.presentation.tools.ColumnWidthOf
 import com.xxcactussell.presentation.tools.FormattedTextView
 import com.xxcactussell.presentation.tools.Sticker
@@ -59,8 +65,8 @@ fun MessageContent(message: MessageUiItem.MessageItem, playerState: PlayerState,
 
     when (val content = message.message.content) {
         is MessageText -> MessageTextContent(content, messageTextColor)
-        is MessagePhoto -> MessagePhotoContent(message, messageTextColor, isSending, isFailed, onMediaClicked)
-        is MessageVideo -> MessageVideo(message, messageTextColor, isSending, isFailed, onMediaClicked)
+        is MessagePhoto -> MessagePhotoContent(message, messageTextColor, isSending, isFailed, onEvent, onMediaClicked)
+        is MessageVideo -> MessageVideo(message, messageTextColor, isSending, isFailed, onEvent, onMediaClicked)
         is MessageSticker -> MessageStickerContent(content.sticker, 172.dp)
         is MessageAnimatedEmoji -> MessageStickerContent(content.animatedEmoji.sticker, 92.dp)
         is MessageDocument -> DocumentMessage(message, messageTextColor, isSending, isFailed, onEvent)
@@ -113,6 +119,7 @@ fun MessageVideo(
     textColor: Color,
     isSending: Boolean,
     isFailed: Boolean,
+    onEvent: (Any) -> Unit,
     onMediaClicked: (Long) -> Unit
 ) {
     val content = message.message.content as MessageVideo
@@ -135,18 +142,35 @@ fun MessageVideo(
         val imageHeight = content.video.thumbnail?.height
         val imageWidth = content.video.thumbnail?.width
 
-        MessageVideoContent(
-            modifier = Modifier
-                .layoutId("photo")
-                .messageContentAspectRatio(imageWidth?.toFloat(), imageHeight?.toFloat())
-                .clip(RoundedCornerShape(14.dp)),
-            messageId = message.message.id,
-            video = content.video,
-            isSending = isSending,
-            isFailed = isFailed,
-            videoCover = content.cover,
-            onMediaClicked = onMediaClicked
-        )
+
+
+        val sharedTransitionScope = LocalSharedTransitionScope.current
+            ?: throw IllegalStateException("No SharedElementScope found")
+        val animatedVisibilityScope = LocalNavAnimatedContentScope.current
+
+        with(sharedTransitionScope) {
+            MessageVideoContent(
+                modifier = Modifier
+                    .layoutId("photo")
+                    .messageContentAspectRatio(imageWidth?.toFloat(), imageHeight?.toFloat())
+                    .clip(RoundedCornerShape(14.dp))
+                    .sharedBounds(
+                        rememberSharedContentState(key = "bounds_${message.message.id}"),
+                        animatedVisibilityScope = animatedVisibilityScope,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds()
+                    ),
+                messageId = message.message.id,
+                chatId = message.getChatId(),
+                video = content.video,
+                isSending = isSending,
+                isFailed = isFailed,
+                videoCover = content.cover,
+                onEvent = onEvent,
+                onMediaClicked = onMediaClicked
+            )
+        }
         if (!content.showCaptionAboveMedia) {
             Caption(content.caption, textColor)
         }
@@ -159,6 +183,7 @@ fun MessagePhotoContent(
     textColor: Color,
     isSending: Boolean,
     isFailed: Boolean,
+    onEvent: (Any) -> Unit,
     onMediaClicked: (Long) -> Unit,
 ) {
     val content = message.message.content as MessagePhoto
@@ -180,17 +205,35 @@ fun MessagePhotoContent(
         if (content.showCaptionAboveMedia) {
             Caption(content.caption, textColor)
         }
-        PhotoMessage(
-            modifier = Modifier
-                .layoutId("photo")
-                .messageContentAspectRatio(w, h)
-                .clip(RoundedCornerShape(14.dp)),
-            messageId = message.message.id,
-            photo = content.photo,
-            isSending = isSending,
-            isFailed = isFailed,
-            onMediaClicked = onMediaClicked
-        )
+
+
+
+        val sharedTransitionScope = LocalSharedTransitionScope.current
+            ?: throw IllegalStateException("No SharedElementScope found")
+        val animatedVisibilityScope = LocalNavAnimatedContentScope.current
+
+        with(sharedTransitionScope) {
+            PhotoMessage(
+                modifier = Modifier
+                    .layoutId("photo")
+                    .messageContentAspectRatio(w, h)
+                    .clip(RoundedCornerShape(14.dp))
+                    .sharedBounds(
+                        rememberSharedContentState(key = "bounds_${message.message.id}"),
+                        animatedVisibilityScope = animatedVisibilityScope,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                        resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds()
+                    ),
+                messageId = message.message.id,
+                photo = content.photo,
+                isSending = isSending,
+                isFailed = isFailed,
+                onEvent = onEvent,
+                chatId = message.getChatId(),
+                onMediaClicked = onMediaClicked
+            )
+        }
         if (!content.showCaptionAboveMedia) {
             Caption(content.caption, textColor)
         }
