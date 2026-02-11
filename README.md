@@ -26,7 +26,7 @@ To build the project, you need to set up your environment:
 
 ## Contacts
 
-**Dev:** Artem Batinkin ([@xxcactussell](https:xxcactussell.com))
+**Dev:** Artem Batinkin ([@xxcactussell](https://xxcactussell.com))
 
 **News:** [Mategram Telegram Channel](https://t.me/mategram_client)
 
