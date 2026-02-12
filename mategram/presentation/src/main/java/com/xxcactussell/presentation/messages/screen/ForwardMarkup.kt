@@ -51,7 +51,12 @@ fun ForwardMarkup(
             ) {
                 Text(
                     text = formatTimestampToDateTime(forwardInfo.date),
-                    style = MaterialTheme.typography.bodySmallEmphasized
+                    style = MaterialTheme.typography.labelSmallEmphasized,
+                    color = listOf(
+                        MaterialTheme.colorScheme.primary,
+                        MaterialTheme.colorScheme.secondary,
+                        MaterialTheme.colorScheme.tertiary
+                    )[abs(forwardInfo.link?.chatId?.rem(3) ?: 0).toInt()]
                 )
             }
         }
@@ -94,7 +99,12 @@ fun ForwardMarkup(
             ) {
                 Text(
                     text = formatTimestampToDateTime(forwardInfo.date),
-                    style = MaterialTheme.typography.bodySmallEmphasized
+                    style = MaterialTheme.typography.labelSmallEmphasized,
+                    color = listOf(
+                        MaterialTheme.colorScheme.primary,
+                        MaterialTheme.colorScheme.secondary,
+                        MaterialTheme.colorScheme.tertiary
+                    )[abs(forwardInfo.link?.chatId?.rem(3) ?: 0).toInt()]
                 )
             }
             Icon(
