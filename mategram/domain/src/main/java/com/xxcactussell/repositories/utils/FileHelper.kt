@@ -1,11 +1,14 @@
 package com.xxcactussell.repositories.utils
 
 import android.net.Uri
+import com.xxcactussell.domain.InputThumbnail
 
 interface FileHelper {
     suspend fun getLocalPath(uri: Uri): String?
     fun getMimeType(uri: Uri): String?
     suspend fun extractMediaMetadata(uri: Uri): MediaMetadata
+    suspend fun generateThumbnail(path: String, isVideo: Boolean): InputThumbnail?
+    suspend fun generateDummyThumbnail(): InputThumbnail
 }
 
 data class MediaMetadata(

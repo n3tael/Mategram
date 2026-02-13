@@ -32,7 +32,7 @@ class RootViewModel @Inject constructor(
 ) : ViewModel() {
     val files: StateFlow<Map<Int, File>> =
         observeFileStatuses()
-            .stateIn(viewModelScope, SharingStarted.Companion.Eagerly, emptyMap())
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     private val _stickers = MutableStateFlow<Map<Long, Sticker>>(emptyMap())
     val stickers: StateFlow<Map<Long, Sticker>> = _stickers.asStateFlow()

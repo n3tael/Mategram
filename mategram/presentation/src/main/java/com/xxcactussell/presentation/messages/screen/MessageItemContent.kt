@@ -107,7 +107,7 @@ fun MessageItemContent(
                 onReplyClicked = onReplyClicked,
                 onLinkClicked = onLinkClicked,
                 {
-                    MessageAlbum(messages = message.messages, onMediaClicked = onMediaClicked)
+                    MessageAlbum(messages = message.messages, onEvent = onEvent,  onMediaClicked = onMediaClicked)
                 },
             )
         }

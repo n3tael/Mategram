@@ -63,6 +63,7 @@ import com.xxcactussell.repositories.messages.model.MessageListItem
 import com.xxcactussell.repositories.messages.model.getDate
 import com.xxcactussell.repositories.messages.repository.AddReactionToMessageUseCase
 import com.xxcactussell.repositories.messages.repository.BuildMessageContentUseCase
+import com.xxcactussell.repositories.messages.repository.CancelSendMessageAndUploadFileUseCase
 import com.xxcactussell.repositories.messages.repository.CloseChatUseCase
 import com.xxcactussell.repositories.messages.repository.GetChatActionFlowUseCase
 import com.xxcactussell.repositories.messages.repository.GetChatFlowUseCase
@@ -114,6 +115,7 @@ class MessagesViewModel @AssistedInject constructor(
     private val getChatFlow: GetChatFlowUseCase,
     private val getChatAction: GetChatActionFlowUseCase,
     private val closeChat: CloseChatUseCase,
+    private val cancelSendMessageAndUploadFile: CancelSendMessageAndUploadFileUseCase,
     private val loadMoreHistory: LoadMoreHistoryUseCase,
     private val loadMoreNewer: LoadMoreNewerUseCase,
     private val playbackManager: PlaybackManager,
@@ -308,6 +310,9 @@ class MessagesViewModel @AssistedInject constructor(
             is MessagesEvent.Initialize -> handleInitialize(event.startMessageId, event.lastReadInboxMessageId)
             is SendClicked -> sendMessage(event.content)
             is ScrolledToStart -> { }
+            is MessagesEvent.CancelUploadFile -> {
+                cancelSendMessageAndUploadFile(event.messageId, event.chatId)
+            }
             is LoadMoreHistory -> loadMoreHistory(chatId)
             is DismissError -> _uiState.update { it.copy(error = null) }
             is MessageClicked -> { if (_uiState.value.messageIdWithDateShown == event.messageId) _uiState.update { it.copy(messageIdWithDateShown = null) } else _uiState.update { it.copy(messageIdWithDateShown = event.messageId) } }
@@ -375,18 +380,17 @@ class MessagesViewModel @AssistedInject constructor(
     }
 
     private fun sendMessage(content: List<InputMessageContent>) {
+        _uiState.update { currentState ->
+            currentState.copy(
+                inputMessage = "",
+                selectedMediaUris = emptyList(),
+                attachmentsType = null,
+                messageToReplay = null
+            )
+        }
         viewModelScope.launch {
             try {
                 sendMessageUseCase(chatId, content, uiState.value.messageToReplay?.getMessageId() ?: 0L)
-
-                _uiState.update { currentState ->
-                    currentState.copy(
-                        inputMessage = "",
-                        selectedMediaUris = emptyList(),
-                        attachmentsType = null,
-                        messageToReplay = null
-                    )
-                }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = "Ошибка отправки: ${e.message}") }
             }
@@ -414,7 +418,7 @@ class MessagesViewModel @AssistedInject constructor(
             is InputEvent.SwitchRecordingMode -> switchRecordingMode()
             is InputEvent.OpenAttachmentsMenu -> _uiState.update { it.copy(showAttachmentsMenu = true) }
             is InputEvent.CloseAttachmentsMenu -> _uiState.update { it.copy(showAttachmentsMenu = false) }
-            is InputEvent.DocumentsSelected -> _uiState.update { it.copy(selectedMediaUris = event.uris) }
+            is InputEvent.DocumentsSelected -> _uiState.update { it.copy(selectedMediaUris = event.uris, attachmentsType = null) }
             is InputEvent.MediaSelected -> _uiState.update { it.copy(selectedMediaUris = event.uris, attachmentsType = "Media") }
             else -> {}
         }

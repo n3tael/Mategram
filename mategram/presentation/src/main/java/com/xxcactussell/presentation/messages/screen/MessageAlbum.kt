@@ -1,5 +1,8 @@
 package com.xxcactussell.presentation.messages.screen
 
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,19 +22,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.unit.dp
+import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import com.xxcactussell.domain.MessageAnimation
 import com.xxcactussell.domain.MessageDocument
 import com.xxcactussell.domain.MessagePhoto
 import com.xxcactussell.domain.MessageSendingStateFailed
 import com.xxcactussell.domain.MessageSendingStatePending
 import com.xxcactussell.domain.MessageVideo
+import com.xxcactussell.presentation.LocalSharedTransitionScope
 import com.xxcactussell.presentation.localization.localizedString
 import com.xxcactussell.presentation.messages.model.MessageUiItem
+import com.xxcactussell.presentation.messages.model.getChatId
 import com.xxcactussell.presentation.tools.ColumnWidthOf
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun MessageAlbum(messages: List<MessageUiItem.MessageItem>, onMediaClicked: (Long) -> Unit) {
+fun MessageAlbum(messages: List<MessageUiItem.MessageItem>, onEvent: (Any) -> Unit, onMediaClicked: (Long) -> Unit) {
     val hasForward = messages.any { it.message.forwardFullInfo != null }
     val isOutgoing = messages.any { it.message.isOutgoing }
 
@@ -73,6 +79,12 @@ fun MessageAlbum(messages: List<MessageUiItem.MessageItem>, onMediaClicked: (Lon
     val mediaMessages = messages.filter { it.message.content is MessagePhoto || it.message.content is MessageVideo }
     val docsMessages = messages.filter { it.message.content is MessageDocument }
 
+
+
+    val sharedTransitionScope = LocalSharedTransitionScope.current
+        ?: throw IllegalStateException("No SharedElementScope found")
+    val animatedVisibilityScope = LocalNavAnimatedContentScope.current
+
     val carouselState = rememberCarouselState{ mediaMessages.count() }
 
     ColumnWidthOf(
@@ -96,61 +108,89 @@ fun MessageAlbum(messages: List<MessageUiItem.MessageItem>, onMediaClicked: (Lon
                         .width(320.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    HorizontalMultiBrowseCarousel(
-                        modifier = Modifier
-                            .width(320.dp)
-                            .clip(MaterialTheme.shapes.large),
-                        state = carouselState,
-                        maxSmallItemWidth = 320.dp,
-                        minSmallItemWidth = 256.dp,
-                        preferredItemWidth = 256.dp,
-                        itemSpacing = 2.dp
-                    ) { id ->
-                        val isSending = messages[id].message.sendingState is MessageSendingStatePending
-                        val isFailed = messages[id].message.sendingState is MessageSendingStateFailed
-                        when (val content = messages[id].message.content) {
-                            is MessagePhoto -> {
-                                PhotoMessage(
-                                    modifier = Modifier
-                                        .height(320.dp)
-                                        .width(256.dp)
-                                        .maskClip(MaterialTheme.shapes.medium),
-                                    messageId = messages[id].message.id,
-                                    photo = content.photo,
-                                    isSending = isSending,
-                                    onMediaClicked = onMediaClicked,
-                                    isFailed = isFailed,
-                                    // TODO
-                                )
-                            }
+                    with(sharedTransitionScope) {
+                        HorizontalMultiBrowseCarousel(
+                            modifier = Modifier
+                                .width(320.dp)
+                                .clip(MaterialTheme.shapes.large),
+                            state = carouselState,
+                            maxSmallItemWidth = 220.dp,
+                            minSmallItemWidth = 92.dp,
+                            preferredItemWidth = 220.dp,
+                            itemSpacing = 2.dp
+                        ) { id ->
+                            val isSending =
+                                messages[id].message.sendingState is MessageSendingStatePending
+                            val isFailed =
+                                messages[id].message.sendingState is MessageSendingStateFailed
 
-                            is MessageVideo -> {
-                                MessageVideoContent(
-                                    modifier = Modifier
-                                        .height(320.dp)
-                                        .width(256.dp)
-                                        .maskClip(MaterialTheme.shapes.medium),
-                                    messageId = messages[id].message.id,
-                                    video = content.video,
-                                    videoCover = content.cover,
-                                    isSending = isSending,
-                                    onMediaClicked = onMediaClicked,
-                                    isFailed = isFailed,
-                                    // TODO
-                                )
-                            }
+                            when (val content = messages[id].message.content) {
+                                is MessagePhoto -> {
+                                    PhotoMessage(
+                                        modifier = Modifier
+                                            .height(320.dp)
+                                            .width(256.dp)
+                                            .maskClip(MaterialTheme.shapes.medium)
+                                            .sharedBounds(
+                                                rememberSharedContentState(key = "bounds_${messages[id].message.id}"),
+                                                animatedVisibilityScope = animatedVisibilityScope,
+                                                enter = fadeIn(),
+                                                exit = fadeOut(),
+                                                resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds()
+                                            ),
+                                        messageId = messages[id].message.id,
+                                        photo = content.photo,
+                                        isSending = isSending,
+                                        onMediaClicked = onMediaClicked,
+                                        onEvent = onEvent,
+                                        chatId = messages[id].getChatId(),
+                                        isFailed = isFailed
+                                    )
+                                }
 
-                            is MessageAnimation -> {
-                                AnimationMessage(
-                                    modifier = Modifier
-                                        .height(320.dp)
-                                        .width(256.dp)
-                                        .maskClip(MaterialTheme.shapes.medium),
-                                    animation = content.animation
-                                )
-                            }
+                                is MessageVideo -> {
+                                    MessageVideoContent(
+                                        modifier = Modifier
+                                            .height(320.dp)
+                                            .width(256.dp)
+                                            .maskClip(MaterialTheme.shapes.medium)
+                                            .sharedBounds(
+                                                rememberSharedContentState(key = "bounds_${messages[id].message.id}"),
+                                                animatedVisibilityScope = animatedVisibilityScope,
+                                                enter = fadeIn(),
+                                                exit = fadeOut(),
+                                                resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds()
+                                            ),
+                                        messageId = messages[id].message.id,
+                                        video = content.video,
+                                        videoCover = content.cover,
+                                        isSending = isSending,
+                                        onEvent = onEvent,
+                                        onMediaClicked = onMediaClicked,
+                                        chatId = messages[id].getChatId(),
+                                        isFailed = isFailed
+                                    )
+                                }
 
-                            else -> {}
+                                is MessageAnimation -> {
+                                    AnimationMessage(
+                                        modifier = Modifier
+                                            .height(320.dp)
+                                            .width(256.dp)
+                                            .maskClip(MaterialTheme.shapes.medium)
+                                            .sharedBounds(
+                                                rememberSharedContentState(key = "bounds_${messages[id].message.id}"),
+                                                animatedVisibilityScope = animatedVisibilityScope,
+                                                enter = fadeIn(),
+                                                exit = fadeOut(),
+                                                resizeMode = SharedTransitionScope.ResizeMode.scaleToBounds()
+                                            ),
+                                        animation = content.animation
+                                    )
+                                }
+
+                                else -> {}
+                            }
                         }
                     }
                     Box(

@@ -68,7 +68,7 @@ class TdClientManagerImpl @Inject constructor() : TdClientManager {
                 TelegramCredentials.initialize(context)
 
                 try {
-                    Client.execute(TdApi.SetLogVerbosityLevel(1))
+                    Client.execute(TdApi.SetLogVerbosityLevel(0))
                 } catch (e: Exception) { }
 
                 _client = Client.create({ update ->
